@@ -11,7 +11,8 @@
     "test": "node --test test/test_suite.js"
   },
   "dependencies": {
-    "axios": "^1.7.9"
+    "axios": "^1.7.9",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"
