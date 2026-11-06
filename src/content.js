@@ -1,3 +1,5 @@
+import Tesseract from "tesseract.js";
+
 (() => {
   if (window.__suvidhaAssistantLoaded) return;
   window.__suvidhaAssistantLoaded = true;
@@ -30,6 +32,65 @@
     }
     box.style.borderColor = isError ? "#c0392b" : "#25845b";
     box.textContent = message;
+  }
+
+  // Extract text from image with id="logo" via Tesseract.js
+  async function extractLogoText() {
+    const img = document.getElementById("captcha");
+    if (!img) {
+      notice("Logo image (#logo) not found.", true);
+      return null;
+    }
+
+    notice("Reading text from image (#logo)...", false);
+
+    let imageSource = img;
+    try {
+      // Use canvas to get a clean base64 data URL if dimensions exist
+      if (img.src && !img.src.startsWith("data:")) {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width || 200;
+        canvas.height = img.naturalHeight || img.height || 50;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          imageSource = canvas.toDataURL("image/png");
+        }
+      }
+    } catch (e) {
+      // If tainted canvas due to cross-origin, fallback to original element or src
+      imageSource = img.src || img;
+    }
+
+    try {
+      // Use locally bundled worker and core WASM for MV3 compliance
+      const workerOptions = {};
+      if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
+        workerOptions.workerPath = chrome.runtime.getURL("tesseract-worker.min.js");
+        workerOptions.corePath = chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js");
+      }
+
+      const { data: { text } } = await Tesseract.recognize(
+        imageSource,
+        "eng",
+        {
+          ...workerOptions,
+          logger: (m) => {
+            if (m.status === "recognizing text" && m.progress !== undefined) {
+              notice(`Extracting text: ${Math.round(m.progress * 100)}%`, false);
+            }
+          }
+        }
+      );
+      const cleaned = (text || "").trim().replace(/\s+/g, "").toUpperCase();
+      console.log("[OCR Result] Extracted text (UPPERCASE):", cleaned);
+      notice(`OCR Extracted: ${cleaned}`, false);
+      return cleaned;
+    } catch (err) {
+      console.error("Tesseract OCR failed:", err);
+      notice("Failed to extract text from logo.", true);
+      return null;
+    }
   }
 
   // Set input value compatible with React/Vue and trigger change/input events
@@ -321,13 +382,25 @@
       }
     });
 
-    // Auto-click Calculate button if enabled
-    if (p.autoCalc !== false) {
-      const calculate = [...document.querySelectorAll("button, input[type=button], input[type=submit], a")].find(el => {
-        const txt = norm(el.innerText || el.value || "");
-        return txt.includes("calculate") && (el.offsetWidth || el.offsetHeight);
-      });
+    // Handle Calculate button and OCR trigger
+    const calculate = [...document.querySelectorAll("button, input[type=button], input[type=submit], a")].find(el => {
+      const txt = norm(el.innerText || el.value || "");
+      return txt.includes("calculate") && (el.offsetWidth || el.offsetHeight);
+    });
 
+    if (calculate) {
+      calculate.addEventListener?.("click", async () => {
+        const text = await extractLogoText();
+        if (text) {
+          const captchaInput = findInput(["captcha code", "captcha"]);
+          if (captchaInput) {
+            setValue(captchaInput, text.toUpperCase());
+          }
+        }
+      });
+    }
+
+    if (p.autoCalc !== false) {
       if (calculate) {
         setTimeout(() => {
           const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
@@ -336,7 +409,7 @@
           calculate.click();
           calculate.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
         }, 250);
-        notice("Autofill complete. Calculate clicked. Enter CAPTCHA.", false);
+        notice("Autofill complete. Calculate clicked. Processing OCR...", false);
       } else {
         notice("Autofill complete. Please click Calculate manually.", false);
       }

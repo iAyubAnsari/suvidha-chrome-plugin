@@ -21,6 +21,16 @@ async function copyStaticAssets() {
   fs.copyFileSync('src/manifest.json', 'chrome-extensions/manifest.json');
   fs.copyFileSync('src/popup.html', 'chrome-extensions/popup.html');
   fs.cpSync('src/icons', 'chrome-extensions/icons', { recursive: true });
+
+  // Copy tesseract worker & WASM core files locally for offline/CSP compliance
+  fs.copyFileSync(
+    'node_modules/tesseract.js/dist/worker.min.js',
+    'chrome-extensions/tesseract-worker.min.js'
+  );
+  fs.copyFileSync(
+    'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js',
+    'chrome-extensions/tesseract-core-simd-lstm.wasm.js'
+  );
 }
 
 async function build() {
