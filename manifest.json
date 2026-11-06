@@ -1,0 +1,14 @@
+﻿{
+  "manifest_version": 3,
+  "name": "Suvidha Booking Assistant",
+  "version": "1.0.0",
+  "description": "Exporter booking form assistant",
+  "permissions": ["storage"],
+  "host_permissions": ["https://suvidha-mp.wb.gov.in/*"],
+  "action": {"default_popup": "popup.html"},
+  "content_scripts": [{
+    "matches": ["https://suvidha-mp.wb.gov.in/exporter-oth/*"],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }]
+}

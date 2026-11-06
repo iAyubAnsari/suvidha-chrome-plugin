@@ -1,0 +1,27 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+body{width:320px;padding:15px;font:14px Arial}
+h2{color:#531b91}
+label{display:block;margin-top:10px;font-weight:bold}
+input{width:95%;padding:8px;margin-top:4px}
+button{width:100%;padding:10px;margin-top:12px;cursor:pointer}
+#status{margin-top:10px}
+</style>
+</head>
+<body>
+<h2>Suvidha Assistant</h2>
+<label>Goods name</label><input id="goods">
+<label>UDIN of LC</label><input id="udin" maxlength="25">
+<label>LC number</label><input id="lcNumber">
+<label>LC date</label><input id="lcDate" type="date">
+<label>Importer name</label><input id="importer">
+<label>Number of vehicles</label><input id="vehicles" type="number">
+<button id="save">Save profile</button>
+<button id="fill">Autofill and Calculate</button>
+<div id="status"></div>
+<script src="popup.js"></script>
+</body>
+</html>
