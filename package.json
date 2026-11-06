@@ -1,7 +1,8 @@
 {
   "name": "suvidha-chrome-plugin",
   "version": "1.1.0",
-  "description": "Suvidha Booking Assistant Chrome Extension",
+  "description": "Suvidha Booking Assistant Chrome Extension by Ayub Ansari",
+  "author": "Ayub Ansari",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
