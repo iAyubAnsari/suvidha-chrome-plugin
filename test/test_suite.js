@@ -351,6 +351,9 @@ test('4. Content Script (content.js)', async (t) => {
             e.tagName === 'A'
           );
         }
+        if (sel.includes('input[type=checkbox]') || sel.includes("input[type='checkbox']")) {
+          return allElements.filter(e => e instanceof HTMLInputElement && e.type === 'checkbox');
+        }
         if (sel.includes('td, div')) {
           return allElements.filter(e => e.tagName === 'TD' || e.tagName === 'DIV');
         }
@@ -558,5 +561,66 @@ test('4. Content Script (content.js)', async (t) => {
     assert.equal(inputVehicles.value, '4');
     assert.equal(calcBtn.clicked, true, 'Calculate button was clicked');
     assert.equal(captchaInput.focused, true, 'Captcha input was focused');
+  });
+
+  await t.test('Page 3: GRIPS Payment Verification & Next (/GRIPS/v2/#/g2-payment)', async () => {
+    const { doc } = createDocumentMock();
+    const windowMock = {
+      location: { href: 'https://wbifms.gov.in/GRIPS/v2/#/g2-payment/external?uuid=123' },
+      __suvidhaAssistantLoaded: undefined
+    };
+
+    let messageHandler = null;
+    const chromeMock = {
+      runtime: {
+        onMessage: {
+          addListener: (fn) => { messageHandler = fn; }
+        }
+      },
+      storage: {
+        local: {
+          get: (key, cb) => cb({})
+        }
+      }
+    };
+
+    class MockMutationObserver {
+      observe() {}
+      disconnect() {}
+    }
+
+    const checkbox = doc.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = false;
+    const label = doc.createElement('label');
+    label.innerText = 'Verified and checked';
+    label.appendChild(checkbox);
+    doc.body.appendChild(label);
+
+    const nextBtn = doc.createElement('button');
+    nextBtn.innerText = 'NEXT';
+    nextBtn.disabled = false;
+    doc.body.appendChild(nextBtn);
+
+    const ctx = vm.createContext({
+      window: windowMock,
+      document: doc,
+      chrome: chromeMock,
+      MutationObserver: MockMutationObserver,
+      Event: globalThis.Event,
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+      HTMLInputElement,
+      HTMLTextAreaElement,
+      HTMLSelectElement
+    });
+
+    vm.runInContext(contentJsCode, ctx);
+
+    // Wait for async tick & click (600ms initial delay + 400ms next delay)
+    await new Promise(r => setTimeout(r, 1200));
+
+    assert.equal(checkbox.checked, true, 'Verified and checked checkbox was ticked');
+    assert.equal(nextBtn.clicked, true, 'Next button was clicked');
   });
 });

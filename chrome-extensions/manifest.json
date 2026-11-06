@@ -8,7 +8,9 @@
     "activeTab"
   ],
   "host_permissions": [
-    "https://suvidha-mp.wb.gov.in/*"
+    "https://suvidha-mp.wb.gov.in/*",
+    "https://wbifms.gov.in/*",
+    "https://epay.sbi.bank.in/*"
   ],
   "icons": {
     "16": "icons/icon-16.png",
@@ -26,7 +28,9 @@
   "content_scripts": [
     {
       "matches": [
-        "https://suvidha-mp.wb.gov.in/exporter-oth/*"
+        "https://suvidha-mp.wb.gov.in/exporter-oth/*",
+        "https://wbifms.gov.in/GRIPS/*",
+        "https://epay.sbi.bank.in/*"
       ],
       "js": [
         "content.js"

@@ -1403,7 +1403,10 @@
         imageSource = img.src || img;
       }
       try {
-        const workerOptions = {};
+        const workerOptions = {
+          workerBlobURL: false
+          // Prevent CSP violation from blob: URL importScripts
+        };
         if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
           workerOptions.workerPath = chrome.runtime.getURL("tesseract-worker.min.js");
           workerOptions.corePath = chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js");
@@ -1666,11 +1669,13 @@
       if (calculate) {
         calculate.addEventListener?.("click", async () => {
           const text = await extractLogoText();
-          if (text) {
-            const captchaInput = findInput(["captcha code", "captcha"]);
-            if (captchaInput) {
+          const captchaInput = findInput(["captchavalue", "captcha code", "captcha"]);
+          if (captchaInput) {
+            if (text) {
               setValue(captchaInput, text.toUpperCase());
             }
+            captchaInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
+            captchaInput.focus();
           }
         });
       }
@@ -1708,6 +1713,173 @@
       }
       return filled;
     }
+    async function selectDropdownOption(containerOrSelect, optionText) {
+      if (!containerOrSelect) return false;
+      const normTarget = norm(optionText);
+      if (containerOrSelect.tagName === "SELECT") {
+        const opt = [...containerOrSelect.options].find((o) => norm(o.text).includes(normTarget));
+        if (opt) {
+          containerOrSelect.value = opt.value;
+          setValue(containerOrSelect, opt.value);
+          return true;
+        }
+      }
+      const trigger = containerOrSelect.querySelector?.(".mat-select-trigger, [cdk-overlay-origin], mat-select") || (containerOrSelect.classList?.contains("mat-select-trigger") ? containerOrSelect : null) || containerOrSelect;
+      const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+      trigger.focus?.();
+      trigger.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+      trigger.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+      trigger.click();
+      trigger.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
+      const option = await waitFor(() => {
+        const options = [...document.querySelectorAll("mat-option, .mat-option, [role='option']")].filter(
+          (el) => el.offsetWidth || el.offsetHeight
+        );
+        return options.find((el) => {
+          const txt = norm(el.innerText || el.textContent || "");
+          return txt === normTarget || txt.includes(normTarget);
+        }) || null;
+      }, 4500, 150);
+      if (option) {
+        await new Promise((r) => setTimeout(r, 150));
+        option.scrollIntoView?.({ block: "nearest" });
+        option.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+        option.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+        option.click();
+        option.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
+        await new Promise((r) => setTimeout(r, 300));
+        return true;
+      }
+      return false;
+    }
+    async function handleGripsPayment(profile) {
+      notice("GRIPS Payment page detected...", false);
+      const checkbox = await waitFor(() => {
+        const checkboxes = [...document.querySelectorAll("input[type='checkbox']")];
+        return checkboxes.find((cb) => {
+          const context = norm([
+            cb.id,
+            cb.name,
+            cb.parentElement?.innerText,
+            cb.closest("label, div, p")?.innerText
+          ].join(" "));
+          return context.includes("verified and checked") || context.includes("verified");
+        }) || null;
+      }, 2500);
+      if (checkbox && !checkbox.checked) {
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+        checkbox.dispatchEvent(new Event("input", { bubbles: true }));
+        checkbox.click();
+        notice("Checked 'Verified and checked'. Clicking Next...", false);
+        await new Promise((r) => setTimeout(r, 400));
+        const nextBtn = await waitFor(() => {
+          const buttons = [...document.querySelectorAll("button, input[type=button], input[type=submit], a")];
+          return buttons.find((btn) => {
+            const txt = norm(btn.innerText || btn.value || "");
+            return (txt === "next" || txt.includes("next")) && (btn.offsetWidth || btn.offsetHeight) && !btn.disabled;
+          }) || null;
+        }, 3e3);
+        if (nextBtn) {
+          nextBtn.click();
+          notice("Review step completed. Loading Payment Mode selection...", false);
+        }
+      }
+      notice("Loading Payment Mode & Bank Selection...", false);
+      await new Promise((r) => setTimeout(r, 800));
+      const paymentModeSelect = await waitFor(() => {
+        const byLabel = document.querySelector("mat-select[aria-labelledby*='mat-form-field-label-1'], #mat-select-0");
+        if (byLabel && (byLabel.offsetWidth || byLabel.offsetHeight)) return byLabel;
+        const allSelects = [...document.querySelectorAll("mat-select, [role='combobox']")].filter(
+          (el) => el.offsetWidth || el.offsetHeight
+        );
+        const match = allSelects.find((el) => {
+          const labelText = norm(el.closest(".mat-form-field")?.querySelector(".mat-form-field-label")?.innerText || "");
+          return labelText.includes("payment mode");
+        });
+        return match || allSelects[0] || null;
+      }, 1e4, 200);
+      if (paymentModeSelect) {
+        notice("Selecting Payment Mode: SBI Epay...", false);
+        const paymentModeTarget = profile.paymentMode || "SBI Epay";
+        await selectDropdownOption(paymentModeSelect, paymentModeTarget);
+        await new Promise((r) => setTimeout(r, 1200));
+        const payThroughSelect = await waitFor(() => {
+          const byLabel = document.querySelector("mat-select[aria-labelledby*='mat-form-field-label-3'], #mat-select-2");
+          if (byLabel && (byLabel.offsetWidth || byLabel.offsetHeight)) return byLabel;
+          const allSelects = [...document.querySelectorAll("mat-select, [role='combobox']")].filter(
+            (el) => (el.offsetWidth || el.offsetHeight) && el !== paymentModeSelect
+          );
+          const match = allSelects.find((el) => {
+            const labelText = norm(el.closest(".mat-form-field")?.querySelector(".mat-form-field-label")?.innerText || "");
+            return labelText.includes("pay through") || labelText.includes("bank");
+          });
+          return match || allSelects[0] || null;
+        }, 8e3, 200);
+        if (payThroughSelect) {
+          notice("Selecting Pay through: Payment Gateway/Bank...", false);
+          const payThroughTarget = profile.payThrough || "Payment Gateway";
+          await selectDropdownOption(payThroughSelect, payThroughTarget);
+          await new Promise((r) => setTimeout(r, 800));
+          const nextBtn2 = await waitFor(() => {
+            const buttons = [...document.querySelectorAll("button, input[type=button], input[type=submit], a")];
+            return buttons.find((btn) => {
+              const txt = norm(btn.innerText || btn.value || "");
+              return (txt === "next" || txt.includes("next")) && (btn.offsetWidth || btn.offsetHeight) && !btn.disabled;
+            }) || null;
+          }, 6e3, 200);
+          if (nextBtn2) {
+            nextBtn2.scrollIntoView?.({ block: "center" });
+            nextBtn2.click();
+            notice("Selected SBI Epay & Payment Gateway. Clicked Next.", false);
+          }
+        }
+      }
+      notice("Waiting for Transaction Details & Pay Now button...", false);
+      const payNowBtn = await waitFor(() => {
+        const buttons = [...document.querySelectorAll("button, input[type=button], input[type=submit], a")];
+        return buttons.find((btn) => {
+          const txt = norm(btn.innerText || btn.value || "");
+          return (txt === "pay now" || txt.includes("pay now")) && (btn.offsetWidth || btn.offsetHeight) && !btn.disabled;
+        }) || null;
+      }, 12e3, 300);
+      if (payNowBtn) {
+        await new Promise((r) => setTimeout(r, 600));
+        payNowBtn.scrollIntoView?.({ block: "center" });
+        payNowBtn.click();
+        notice("Pay Now clicked! Redirecting to Payment Gateway...", false);
+        return "Pay Now clicked. Final payment redirect in progress.";
+      }
+      return "GRIPS payment automation in progress.";
+    }
+    async function handleSbiEpay() {
+      notice("SBI ePay gateway detected. Selecting NEFT tab...", false);
+      const neftTab = await waitFor(() => {
+        const direct = document.querySelector("#activeNEFT a, li#activeNEFT, a.collapse5");
+        if (direct && (direct.offsetWidth || direct.offsetHeight)) return direct;
+        const navLinks = [...document.querySelectorAll(".side_nav a, .side_nav li, a, button")].filter(
+          (el) => el.offsetWidth || el.offsetHeight
+        );
+        return navLinks.find((el) => {
+          const txt = norm(el.innerText || el.textContent || "");
+          return txt === "neft" || txt.includes("neft");
+        }) || null;
+      }, 1e4, 200);
+      if (neftTab) {
+        await new Promise((r) => setTimeout(r, 400));
+        neftTab.scrollIntoView?.({ block: "center" });
+        const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+        neftTab.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+        neftTab.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+        neftTab.click();
+        neftTab.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
+        notice("NEFT selected! Ready for Pay Now.", false);
+        return "NEFT tab selected on SBI ePay.";
+      } else {
+        notice("NEFT tab not found on SBI ePay.", true);
+        return "NEFT tab not found.";
+      }
+    }
     async function runAction(profile) {
       const url = window.location.href;
       if (url.includes("avilable-slot")) {
@@ -1716,9 +1888,15 @@
       } else if (url.includes("slot-booking") || url.includes("booking")) {
         const filled = handleBookingForm(profile);
         return "Filled: " + (filled.join(", ") || "No matching fields found");
+      } else if (url.includes("wbifms.gov.in") || url.includes("g2-payment") || url.includes("GRIPS")) {
+        const res = await handleGripsPayment(profile);
+        return res;
+      } else if (url.includes("epay.sbi.bank.in") || url.includes("AggregatorHostedListener")) {
+        const res = await handleSbiEpay();
+        return res;
       } else {
-        notice("Ready. Navigate to slot or booking page.", false);
-        return "Current page is not recognized as slot or booking form.";
+        notice("Ready. Navigate to slot, booking or payment page.", false);
+        return "Current page is not recognized as slot, booking, or payment form.";
       }
     }
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -1730,8 +1908,9 @@
       }
     });
     chrome.storage.local.get("profile", ({ profile }) => {
-      if (profile?.autoRun) {
-        setTimeout(() => runAction(profile), 600);
+      const isPaymentPortal = window.location.href.includes("wbifms.gov.in") || window.location.href.includes("g2-payment") || window.location.href.includes("epay.sbi.bank.in");
+      if (profile?.autoRun || isPaymentPortal) {
+        setTimeout(() => runAction(profile || {}), 600);
       }
     });
     new MutationObserver(() => {
