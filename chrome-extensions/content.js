@@ -1381,7 +1381,7 @@
       box.textContent = message;
     }
     async function extractLogoText() {
-      const img = document.getElementById("captcha") || document.getElementById("logo");
+      const img = document.getElementById("captcha");
       console.log({ img });
       if (!img) {
         notice("Logo image element not found.", true);
@@ -1677,7 +1677,7 @@
       if (calculate) {
         calculate.addEventListener?.("click", async () => {
           const text = await extractLogoText();
-          const logoInput = findInput(["logovalue"]);
+          const logoInput = findInput(["captchavalue", "captchaValue", "captcha"]);
           if (logoInput) {
             logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
             logoInput.focus();
@@ -1688,6 +1688,8 @@
               let index = 0;
               const typingInterval = setInterval(() => {
                 logoInput.value += extractedText[index];
+                logoInput.dispatchEvent(new Event("input", { bubbles: true }));
+                logoInput.dispatchEvent(new Event("change", { bubbles: true }));
                 index++;
                 if (index >= extractedText.length) {
                   clearInterval(typingInterval);

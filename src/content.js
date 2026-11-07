@@ -37,7 +37,7 @@ import Tesseract from "tesseract.js";
   // Extract text from image with id="captcha" via Single-Threaded Main Frame execution
   // Extract text from image with id="captcha" via Single-Threaded Main Frame execution
   async function extractLogoText() {
-    const img = document.getElementById("captcha") || document.getElementById("logo");
+    const img = document.getElementById("captcha")
     console.log({ img });
     if (!img) {
       notice("Logo image element not found.", true);
@@ -406,12 +406,9 @@ import Tesseract from "tesseract.js";
     if (calculate) {
       calculate.addEventListener?.("click", async () => {
         const text = await extractLogoText();
-        const logoInput = findInput(["logovalue"]);
+        // Uses lowercased matching terms to match your findInput normalization loop
+        const logoInput = findInput(["captchavalue", "captchaValue", "captcha"]);
         if (logoInput) {
-          // if (text) {
-          //   // setValue(logoInput, text.toUpperCase());
-
-          // }
           // Scroll and bring focus directly to the logo input
           logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
           logoInput.focus();
@@ -424,18 +421,22 @@ import Tesseract from "tesseract.js";
 
             const typingInterval = setInterval(() => {
               logoInput.value += extractedText[index];
+
+              // CRUCIAL: Dispatches native bubble events so the form registers the keystroke
+              logoInput.dispatchEvent(new Event("input", { bubbles: true }));
+              logoInput.dispatchEvent(new Event("change", { bubbles: true }));
+
               index++;
 
               if (index >= extractedText.length) {
                 clearInterval(typingInterval);
               }
-            }, 200); // 300ms delay between characters
+            }, 200); // 200ms delay between characters
           }
-
-
         }
       });
     }
+
 
     if (p.autoCalc !== false) {
       if (calculate) {
