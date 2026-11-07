@@ -233,51 +233,73 @@ import Tesseract from "tesseract.js";
   }
 
   // Select and submit slot
+  // Select and submit slot securely bypassing browser CSP inline violations
   function selectAndSubmitSlot(slotElement) {
     if (!slotElement) return false;
 
-    slotElement.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    try {
+      slotElement.scrollIntoView?.({ behavior: "smooth", block: "center" });
 
-    // Read booking date attribute from portal element
-    const bookingDate = (
-      slotElement.getAttribute("data-booking_date") ||
-      slotElement.dataset?.booking_date ||
-      slotElement.dataset?.bookingDate ||
-      ""
-    ).trim();
+      // Read booking date attribute from portal element
+      const bookingDate = (
+        slotElement.getAttribute("data-booking_date") ||
+        slotElement.dataset?.booking_date ||
+        slotElement.dataset?.bookingDate ||
+        ""
+      ).trim();
 
-    // Update .event-date input in portal form
-    const eventDateInputs = document.querySelectorAll(".event-date, input[name='event_date'], input[name='booking_date']");
-    eventDateInputs.forEach(input => {
-      if (bookingDate) input.value = bookingDate;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+      // Update .event-date input in portal form
+      const eventDateInputs = document.querySelectorAll(".event-date, input[name='event_date'], input[name='booking_date']");
+      eventDateInputs.forEach(input => {
+        if (bookingDate) input.value = bookingDate;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      });
 
-    // Dispatch full mouse event sequence directly on .slot_available
-    const target = (slotElement.closest && slotElement.closest(".slot_available")) || slotElement;
-    const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-    target.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-    target.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-    target.click();
-    target.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
+      // Target the direct active element safely
+      const target = (slotElement.closest && slotElement.closest(".slot_available")) || slotElement;
+      const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
 
-    // Find the portal form and submit it directly to guarantee navigation
-    const form = (target.closest && target.closest("form")) || document.querySelector("form");
-    if (form) {
-      setTimeout(() => {
-        if (window.location.href.includes("avilable-slot")) {
-          try {
-            HTMLFormElement.prototype.submit.call(form);
-          } catch (e) {
-            form.submit();
-          }
+      // 1. Dispatch safe, full native event bubbling sequences
+      target.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+
+      // 2. Safely call click handlers while bypassing inline 'javascript:' anchors via PointerEvent
+      try {
+        const clickEvent = new PointerEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        });
+        target.dispatchEvent(clickEvent);
+      } catch (clickErr) {
+        // Fallback catch buffer if synthetic dispatch encounters portal boundaries
+        if (typeof target.onclick === "function") {
+          target.onclick();
         }
-      }, 400);
-    }
+      }
 
-    return true;
+      // Find the portal form and submit it directly to guarantee navigation
+      const form = (target.closest && target.closest("form")) || document.querySelector("form");
+      if (form) {
+        setTimeout(() => {
+          if (window.location.href.includes("avilable-slot")) {
+            try {
+              HTMLFormElement.prototype.submit.call(form);
+            } catch (e) {
+              form.submit();
+            }
+          }
+        }, 400);
+      }
+
+      return true;
+    } catch (globalErr) {
+      console.error("[Suvidha Assistant] Safe slot selection error handled:", globalErr);
+      return false;
+    }
   }
+
 
   // STEP 1, 2 & 3: Handle /exporter-oth/avilable-slot
   async function handleAvailableSlots(profile) {
@@ -406,15 +428,13 @@ import Tesseract from "tesseract.js";
     if (calculate) {
       calculate.addEventListener?.("click", async () => {
         const text = await extractLogoText();
-        // Uses lowercased matching terms to match your findInput normalization loop
         const logoInput = findInput(["captchavalue", "captchaValue", "captcha"]);
         if (logoInput) {
-          // Scroll and bring focus directly to the logo input
           logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
           logoInput.focus();
 
           console.log({ text })
-          const extractedText = text
+          const extractedText = text;
           if (text) {
             logoInput.value = "";
             let index = 0;
@@ -422,7 +442,7 @@ import Tesseract from "tesseract.js";
             const typingInterval = setInterval(() => {
               logoInput.value += extractedText[index];
 
-              // CRUCIAL: Dispatches native bubble events so the form registers the keystroke
+              // CRUCIAL: Triggers page events so the form registers the keystroke
               logoInput.dispatchEvent(new Event("input", { bubbles: true }));
               logoInput.dispatchEvent(new Event("change", { bubbles: true }));
 
@@ -430,8 +450,27 @@ import Tesseract from "tesseract.js";
 
               if (index >= extractedText.length) {
                 clearInterval(typingInterval);
+
+                // --- NEW PROCEED TO PAYMENT CLICKER PATCH ---
+                setTimeout(() => {
+                  const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find(el => {
+                    const txt = norm(el.innerText || el.value || el.textContent || "");
+                    return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
+                  });
+
+                  if (paymentBtn) {
+                    notice("Captcha typed! Clicking Proceed to payment...", false);
+                    const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+                    paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+                    paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+                    paymentBtn.click();
+                  } else {
+                    notice("Proceed to payment button not found.", true);
+                  }
+                }, 350); // 350ms buffer to let form state process cleanly
+                // --------------------------------------------
               }
-            }, 200); // 200ms delay between characters
+            }, 200); // 200ms typing delay per character
           }
         }
       });

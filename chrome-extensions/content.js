@@ -1540,33 +1540,48 @@
     }
     function selectAndSubmitSlot(slotElement) {
       if (!slotElement) return false;
-      slotElement.scrollIntoView?.({ behavior: "smooth", block: "center" });
-      const bookingDate = (slotElement.getAttribute("data-booking_date") || slotElement.dataset?.booking_date || slotElement.dataset?.bookingDate || "").trim();
-      const eventDateInputs = document.querySelectorAll(".event-date, input[name='event_date'], input[name='booking_date']");
-      eventDateInputs.forEach((input) => {
-        if (bookingDate) input.value = bookingDate;
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-      const target = slotElement.closest && slotElement.closest(".slot_available") || slotElement;
-      const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-      target.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-      target.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-      target.click();
-      target.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
-      const form = target.closest && target.closest("form") || document.querySelector("form");
-      if (form) {
-        setTimeout(() => {
-          if (window.location.href.includes("avilable-slot")) {
-            try {
-              HTMLFormElement.prototype.submit.call(form);
-            } catch (e) {
-              form.submit();
-            }
+      try {
+        slotElement.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        const bookingDate = (slotElement.getAttribute("data-booking_date") || slotElement.dataset?.booking_date || slotElement.dataset?.bookingDate || "").trim();
+        const eventDateInputs = document.querySelectorAll(".event-date, input[name='event_date'], input[name='booking_date']");
+        eventDateInputs.forEach((input) => {
+          if (bookingDate) input.value = bookingDate;
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        const target = slotElement.closest && slotElement.closest(".slot_available") || slotElement;
+        const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+        target.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+        target.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+        try {
+          const clickEvent = new PointerEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          });
+          target.dispatchEvent(clickEvent);
+        } catch (clickErr) {
+          if (typeof target.onclick === "function") {
+            target.onclick();
           }
-        }, 400);
+        }
+        const form = target.closest && target.closest("form") || document.querySelector("form");
+        if (form) {
+          setTimeout(() => {
+            if (window.location.href.includes("avilable-slot")) {
+              try {
+                HTMLFormElement.prototype.submit.call(form);
+              } catch (e) {
+                form.submit();
+              }
+            }
+          }, 400);
+        }
+        return true;
+      } catch (globalErr) {
+        console.error("[Suvidha Assistant] Safe slot selection error handled:", globalErr);
+        return false;
       }
-      return true;
     }
     async function handleAvailableSlots(profile) {
       notice("Processing slot selection...");
@@ -1693,6 +1708,21 @@
                 index++;
                 if (index >= extractedText.length) {
                   clearInterval(typingInterval);
+                  setTimeout(() => {
+                    const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find((el) => {
+                      const txt = norm(el.innerText || el.value || el.textContent || "");
+                      return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
+                    });
+                    if (paymentBtn) {
+                      notice("Captcha typed! Clicking Proceed to payment...", false);
+                      const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+                      paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+                      paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+                      paymentBtn.click();
+                    } else {
+                      notice("Proceed to payment button not found.", true);
+                    }
+                  }, 350);
                 }
               }, 200);
             }
