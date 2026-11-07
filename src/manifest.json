@@ -41,11 +41,13 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "node_modules/tesseract.js/dist/tesseract.min.js",
+        "tessdata/eng.traineddata",
         "tesseract-worker.min.js",
         "tesseract-core-simd-lstm.wasm.js"
       ],
       "matches": [
-        "https://suvidha-mp.wb.gov.in/*"
+        "<all_urls>"
       ]
     }
   ]

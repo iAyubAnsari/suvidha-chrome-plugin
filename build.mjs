@@ -1,6 +1,5 @@
 import esbuild from 'esbuild';
 import fs from 'fs';
-import path from 'path';
 
 const isWatch = process.argv.includes('--watch');
 
@@ -22,6 +21,9 @@ async function copyStaticAssets() {
   fs.copyFileSync('src/popup.html', 'chrome-extensions/popup.html');
   fs.cpSync('src/icons', 'chrome-extensions/icons', { recursive: true });
 
+  // ADD THIS LINE to copy your local language files over to the build folder
+  fs.cpSync('src/tessdata', 'chrome-extensions/tessdata', { recursive: true });
+
   // Copy tesseract worker & WASM core files locally for offline/CSP compliance
   fs.copyFileSync(
     'node_modules/tesseract.js/dist/worker.min.js',
@@ -32,6 +34,7 @@ async function copyStaticAssets() {
     'chrome-extensions/tesseract-core-simd-lstm.wasm.js'
   );
 }
+
 
 async function build() {
   await copyStaticAssets();

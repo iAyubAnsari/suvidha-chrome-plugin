@@ -34,19 +34,20 @@ import Tesseract from "tesseract.js";
     box.textContent = message;
   }
 
-  // Extract text from image with id="logo" via Tesseract.js
+  // Extract text from image with id="captcha" via Single-Threaded Main Frame execution
+  // Extract text from image with id="captcha" via Single-Threaded Main Frame execution
   async function extractLogoText() {
-    const img = document.getElementById("logo");
+    const img = document.getElementById("captcha") || document.getElementById("logo");
+    console.log({ img });
     if (!img) {
-      notice("Logo image (#logo) not found.", true);
+      notice("Logo image element not found.", true);
       return null;
     }
 
-    notice("Reading text from image (#logo)...", false);
+    notice("Reading text from image...", false);
 
     let imageSource = img;
     try {
-      // Use canvas to get a clean base64 data URL if dimensions exist
       if (img.src && !img.src.startsWith("data:")) {
         const canvas = document.createElement("canvas");
         canvas.width = img.naturalWidth || img.width || 200;
@@ -58,25 +59,32 @@ import Tesseract from "tesseract.js";
         }
       }
     } catch (e) {
-      // If tainted canvas due to cross-origin, fallback to original element or src
       imageSource = img.src || img;
     }
 
-    try {
-      // Use locally bundled worker and core WASM for MV3 compliance
-      const workerOptions = {
-        workerBlobURL: false // Prevent CSP violation from blob: URL importScripts
-      };
-      if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
-        workerOptions.workerPath = chrome.runtime.getURL("tesseract-worker.min.js");
-        workerOptions.corePath = chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js");
-      }
+    // Force inject the core library directly into the page context window if missing
+    if (typeof Tesseract === "undefined") {
+      notice("Injecting OCR engine...", false);
+      const script = document.createElement("script");
+      script.src = chrome.runtime.getURL("node_modules/tesseract.js/dist/tesseract.min.js");
+      (document.head || document.documentElement).appendChild(script);
 
+      await new Promise((resolve) => {
+        script.onload = resolve;
+      });
+    }
+
+    try {
+      // Direct call to Tesseract.recognize forces execution on the main context block
       const { data: { text } } = await Tesseract.recognize(
         imageSource,
         "eng",
         {
-          ...workerOptions,
+          workerPath: chrome.runtime.getURL("tesseract-worker.min.js"),
+          corePath: chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js"),
+          langPath: chrome.runtime.getURL("tessdata/"), // Directs worker to your local src/tessdata folder
+          cacheMethod: 'none',
+          gzip: false, // MANDATORY: Instructs the local worker to read your local raw .gz file natively without hitting remote fetch mirrors
           logger: (m) => {
             if (m.status === "recognizing text" && m.progress !== undefined) {
               notice(`Extracting text: ${Math.round(m.progress * 100)}%`, false);
@@ -84,16 +92,21 @@ import Tesseract from "tesseract.js";
           }
         }
       );
+
       const cleaned = (text || "").trim().replace(/\s+/g, "").toUpperCase();
       console.log("[OCR Result] Extracted text (UPPERCASE):", cleaned);
       notice(`OCR Extracted: ${cleaned}`, false);
       return cleaned;
+
     } catch (err) {
-      console.error("Tesseract OCR failed:", err);
+      console.error("Tesseract OCR single-thread injection failed:", err);
       notice("Failed to extract text from logo.", true);
       return null;
     }
   }
+
+
+
 
   // Set input value compatible with React/Vue and trigger change/input events
   function setValue(el, value) {

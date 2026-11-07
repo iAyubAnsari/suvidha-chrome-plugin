@@ -1381,12 +1381,13 @@
       box.textContent = message;
     }
     async function extractLogoText() {
-      const img = document.getElementById("logo");
+      const img = document.getElementById("captcha") || document.getElementById("logo");
+      console.log({ img });
       if (!img) {
-        notice("Logo image (#logo) not found.", true);
+        notice("Logo image element not found.", true);
         return null;
       }
-      notice("Reading text from image (#logo)...", false);
+      notice("Reading text from image...", false);
       let imageSource = img;
       try {
         if (img.src && !img.src.startsWith("data:")) {
@@ -1402,20 +1403,27 @@
       } catch (e) {
         imageSource = img.src || img;
       }
+      if (typeof import_tesseract.default === "undefined") {
+        notice("Injecting OCR engine...", false);
+        const script = document.createElement("script");
+        script.src = chrome.runtime.getURL("node_modules/tesseract.js/dist/tesseract.min.js");
+        (document.head || document.documentElement).appendChild(script);
+        await new Promise((resolve) => {
+          script.onload = resolve;
+        });
+      }
       try {
-        const workerOptions = {
-          workerBlobURL: false
-          // Prevent CSP violation from blob: URL importScripts
-        };
-        if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
-          workerOptions.workerPath = chrome.runtime.getURL("tesseract-worker.min.js");
-          workerOptions.corePath = chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js");
-        }
         const { data: { text } } = await import_tesseract.default.recognize(
           imageSource,
           "eng",
           {
-            ...workerOptions,
+            workerPath: chrome.runtime.getURL("tesseract-worker.min.js"),
+            corePath: chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js"),
+            langPath: chrome.runtime.getURL("tessdata/"),
+            // Directs worker to your local src/tessdata folder
+            cacheMethod: "none",
+            gzip: false,
+            // MANDATORY: Instructs the local worker to read your local raw .gz file natively without hitting remote fetch mirrors
             logger: (m) => {
               if (m.status === "recognizing text" && m.progress !== void 0) {
                 notice(`Extracting text: ${Math.round(m.progress * 100)}%`, false);
@@ -1428,7 +1436,7 @@
         notice(`OCR Extracted: ${cleaned}`, false);
         return cleaned;
       } catch (err) {
-        console.error("Tesseract OCR failed:", err);
+        console.error("Tesseract OCR single-thread injection failed:", err);
         notice("Failed to extract text from logo.", true);
         return null;
       }
