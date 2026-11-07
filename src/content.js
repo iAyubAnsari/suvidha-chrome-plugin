@@ -36,7 +36,7 @@ import Tesseract from "tesseract.js";
 
   // Extract text from image with id="logo" via Tesseract.js
   async function extractLogoText() {
-    const img = document.getElementById("captcha");
+    const img = document.getElementById("logo");
     if (!img) {
       notice("Logo image (#logo) not found.", true);
       return null;
@@ -393,14 +393,33 @@ import Tesseract from "tesseract.js";
     if (calculate) {
       calculate.addEventListener?.("click", async () => {
         const text = await extractLogoText();
-        const captchaInput = findInput(["captchavalue", "captcha code", "captcha"]);
-        if (captchaInput) {
+        const logoInput = findInput(["logovalue"]);
+        if (logoInput) {
+          // if (text) {
+          //   // setValue(logoInput, text.toUpperCase());
+
+          // }
+          // Scroll and bring focus directly to the logo input
+          logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
+          logoInput.focus();
+
+          console.log({ text })
+          const extractedText = text
           if (text) {
-            setValue(captchaInput, text.toUpperCase());
+            logoInput.value = "";
+            let index = 0;
+
+            const typingInterval = setInterval(() => {
+              logoInput.value += extractedText[index];
+              index++;
+
+              if (index >= extractedText.length) {
+                clearInterval(typingInterval);
+              }
+            }, 200); // 300ms delay between characters
           }
-          // Scroll and bring focus directly to the captcha input
-          captchaInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
-          captchaInput.focus();
+
+
         }
       });
     }
@@ -412,33 +431,16 @@ import Tesseract from "tesseract.js";
           calculate.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
           calculate.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
           calculate.click();
-          calculate.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
         }, 250);
-        notice("Autofill complete. Calculate clicked. Processing OCR...", false);
+        notice("Autofill complete. Calculate clicked. Enter logo.", false);
       } else {
         notice("Autofill complete. Please click Calculate manually.", false);
       }
     } else {
-      notice("Autofill complete. Enter CAPTCHA.", false);
+      notice("Autofill complete. Enter logo.", false);
     }
 
-    // Focus CAPTCHA field and ensure typed characters default to uppercase for convenience
-    const captcha = findInput(["captcha code", "captcha"]);
-    if (captcha) {
-      if (captcha.style) captcha.style.textTransform = "uppercase";
-      captcha.addEventListener?.("input", () => {
-        const start = captcha.selectionStart;
-        const end = captcha.selectionEnd;
-        const upper = captcha.value.toUpperCase();
-        if (captcha.value !== upper) {
-          captcha.value = upper;
-          if (start !== null && end !== null) {
-            captcha.setSelectionRange?.(start, end);
-          }
-        }
-      });
-      setTimeout(() => captcha.focus(), 350);
-    }
+
 
     return filled;
   }
@@ -655,7 +657,7 @@ import Tesseract from "tesseract.js";
     if (neftTab) {
       await new Promise(r => setTimeout(r, 400));
       neftTab.scrollIntoView?.({ block: "center" });
-      
+
       const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
       neftTab.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
       neftTab.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
@@ -716,8 +718,8 @@ import Tesseract from "tesseract.js";
   // Error detection via MutationObserver (using textContent to prevent layout thrashing)
   new MutationObserver(() => {
     const text = norm(document.body?.textContent);
-    if (text.includes("captcha code does not match")) {
-      notice("CAPTCHA failed. Please check and enter it again.", true);
+    if (text.includes("logo code does not match")) {
+      notice("logo failed. Please check and enter it again.", true);
     }
   }).observe(document.body, { subtree: true, childList: true });
 

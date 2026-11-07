@@ -1381,7 +1381,7 @@
       box.textContent = message;
     }
     async function extractLogoText() {
-      const img = document.getElementById("captcha");
+      const img = document.getElementById("logo");
       if (!img) {
         notice("Logo image (#logo) not found.", true);
         return null;
@@ -1669,13 +1669,23 @@
       if (calculate) {
         calculate.addEventListener?.("click", async () => {
           const text = await extractLogoText();
-          const captchaInput = findInput(["captchavalue", "captcha code", "captcha"]);
-          if (captchaInput) {
+          const logoInput = findInput(["logovalue"]);
+          if (logoInput) {
+            logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
+            logoInput.focus();
+            console.log({ text });
+            const extractedText = text;
             if (text) {
-              setValue(captchaInput, text.toUpperCase());
+              logoInput.value = "";
+              let index = 0;
+              const typingInterval = setInterval(() => {
+                logoInput.value += extractedText[index];
+                index++;
+                if (index >= extractedText.length) {
+                  clearInterval(typingInterval);
+                }
+              }, 200);
             }
-            captchaInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
-            captchaInput.focus();
           }
         });
       }
@@ -1686,30 +1696,13 @@
             calculate.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
             calculate.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
             calculate.click();
-            calculate.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
           }, 250);
-          notice("Autofill complete. Calculate clicked. Processing OCR...", false);
+          notice("Autofill complete. Calculate clicked. Enter logo.", false);
         } else {
           notice("Autofill complete. Please click Calculate manually.", false);
         }
       } else {
-        notice("Autofill complete. Enter CAPTCHA.", false);
-      }
-      const captcha = findInput(["captcha code", "captcha"]);
-      if (captcha) {
-        if (captcha.style) captcha.style.textTransform = "uppercase";
-        captcha.addEventListener?.("input", () => {
-          const start = captcha.selectionStart;
-          const end = captcha.selectionEnd;
-          const upper = captcha.value.toUpperCase();
-          if (captcha.value !== upper) {
-            captcha.value = upper;
-            if (start !== null && end !== null) {
-              captcha.setSelectionRange?.(start, end);
-            }
-          }
-        });
-        setTimeout(() => captcha.focus(), 350);
+        notice("Autofill complete. Enter logo.", false);
       }
       return filled;
     }
@@ -1915,8 +1908,8 @@
     });
     new MutationObserver(() => {
       const text = norm(document.body?.textContent);
-      if (text.includes("captcha code does not match")) {
-        notice("CAPTCHA failed. Please check and enter it again.", true);
+      if (text.includes("logo code does not match")) {
+        notice("logo failed. Please check and enter it again.", true);
       }
     }).observe(document.body, { subtree: true, childList: true });
   })();

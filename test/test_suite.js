@@ -1,7 +1,7 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import test from 'node:test';
 import vm from 'node:vm';
 
 const PROJECT_DIR = path.join(process.cwd(), 'chrome-extensions');
@@ -12,7 +12,7 @@ test('1. Manifest Validation', async (t) => {
 
   const rawBuffer = fs.readFileSync(manifestPath);
   const hasBOM = rawBuffer[0] === 0xef && rawBuffer[1] === 0xbb && rawBuffer[2] === 0xbf;
-  
+
   await t.test('BOM Check', () => {
     assert.equal(hasBOM, false, 'manifest.json has NO UTF-8 BOM');
   });
@@ -296,9 +296,9 @@ test('4. Content Script (content.js)', async (t) => {
     click() { this.clicked = true; }
   }
 
-  class HTMLInputElement extends HTMLElement {}
-  class HTMLTextAreaElement extends HTMLElement {}
-  class HTMLSelectElement extends HTMLElement {}
+  class HTMLInputElement extends HTMLElement { }
+  class HTMLTextAreaElement extends HTMLElement { }
+  class HTMLSelectElement extends HTMLElement { }
   class HTMLOptionElement extends HTMLElement {
     constructor(text, val) {
       super('option');
@@ -385,8 +385,8 @@ test('4. Content Script (content.js)', async (t) => {
     };
 
     class MockMutationObserver {
-      observe() {}
-      disconnect() {}
+      observe() { }
+      disconnect() { }
     }
 
     // 1. Type of Goods select
@@ -483,8 +483,8 @@ test('4. Content Script (content.js)', async (t) => {
     };
 
     class MockMutationObserver {
-      observe() {}
-      disconnect() {}
+      observe() { }
+      disconnect() { }
     }
 
     // Build form from Screenshot 4
@@ -516,9 +516,9 @@ test('4. Content Script (content.js)', async (t) => {
     calcBtn.innerText = 'Calculate';
     doc.body.appendChild(calcBtn);
 
-    const captchaInput = doc.createElement('input');
-    captchaInput.placeholder = 'Enter Captcha Code';
-    doc.body.appendChild(captchaInput);
+    const logoInput = doc.createElement('input');
+    logoInput.placeholder = 'Enter Logo Code';
+    doc.body.appendChild(logoInput);
 
     const ctx = vm.createContext({
       window: windowMock,
@@ -560,7 +560,7 @@ test('4. Content Script (content.js)', async (t) => {
     assert.equal(inputImporter.value, 'Dhaka Imports');
     assert.equal(inputVehicles.value, '4');
     assert.equal(calcBtn.clicked, true, 'Calculate button was clicked');
-    assert.equal(captchaInput.focused, true, 'Captcha input was focused');
+    assert.equal(logoInput.focused, true, 'Logo input was focused');
   });
 
   await t.test('Page 3: GRIPS Payment Verification & Next (/GRIPS/v2/#/g2-payment)', async () => {
@@ -585,8 +585,8 @@ test('4. Content Script (content.js)', async (t) => {
     };
 
     class MockMutationObserver {
-      observe() {}
-      disconnect() {}
+      observe() { }
+      disconnect() { }
     }
 
     const checkbox = doc.createElement('input');
