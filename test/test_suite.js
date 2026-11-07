@@ -47,7 +47,7 @@ test('1. Manifest Validation', async (t) => {
 
 test('2. Popup HTML and DOM ID Alignment', () => {
   const popupHtml = fs.readFileSync(path.join(PROJECT_DIR, 'popup.html'), 'utf8');
-
+  // here we chnage
   const expectedIds = [
     'goodsType', 'goodsCategory', 'slotDate', 'autoSlot',
     'goods', 'udin', 'lcNumber', 'lcDate', 'importer', 'vehicles',
