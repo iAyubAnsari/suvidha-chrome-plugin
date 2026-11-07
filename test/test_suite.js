@@ -59,7 +59,7 @@ test('2. Popup HTML and DOM ID Alignment', () => {
   }
 });
 
-// now come to this
+// now come to this we can modify this
 
 test('3. Popup Logic (popup.js)', async (t) => {
   const popupJsCode = fs.readFileSync(path.join(PROJECT_DIR, 'popup.js'), 'utf8');
