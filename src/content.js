@@ -1,4 +1,3 @@
-import Tesseract from "tesseract.js";
 
 (() => {
   if (window.__suvidhaAssistantLoaded) return;
@@ -41,110 +40,50 @@ import Tesseract from "tesseract.js";
       return null;
     }
 
-    notice("Reading text from image...", false);
+    notice("Solving captcha via Vision API...", false);
 
-    let imageSource = img;
     try {
+      // Draw image to canvas to get clean base64 data
       const canvas = document.createElement("canvas");
-      const scale = 4; // Upscale 4x for ultra-sharp letter boundaries
-      canvas.width = (img.naturalWidth || img.width || 200) * scale;
-      canvas.height = (img.naturalHeight || img.height || 50) * scale;
+      canvas.width = img.naturalWidth || img.width || 200;
+      canvas.height = img.naturalHeight || img.height || 50;
       const ctx = canvas.getContext("2d");
 
       if (ctx) {
-        ctx.imageSmoothingEnabled = false;
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        // --- IMPROVED CLEANUP: Target and remove only the faint horizontal lines ---
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i];
-          const g = data[i + 1];
-          const b = data[i + 2];
-
-          // If a pixel is grayish (the background security lines), turn it white
-          // Dark black pixels (the actual letters) remain untouched
-          if (Math.abs(r - g) < 15 && Math.abs(g - b) < 15 && r > 80 && r < 200) {
-            data[i] = 255;
-            data[i + 1] = 255;
-            data[i + 2] = 255;
-          } else if (r + g + b > 450) {
-            // Background cleanup
-            data[i] = 255;
-            data[i + 1] = 255;
-            data[i + 2] = 255;
-          } else {
-            // Force letters to solid black
-            data[i] = 0;
-            data[i + 1] = 0;
-            data[i + 2] = 0;
-          }
-        }
-        ctx.putImageData(imgData, 0, 0);
-        imageSource = canvas.toDataURL("image/png");
+        ctx.drawImage(img, 0, 0);
       }
-    } catch (e) {
-      console.error("Canvas processing error:", e);
-      imageSource = img.src || img;
-    }
 
-    if (typeof Tesseract === "undefined") {
-      notice("Injecting OCR engine...", false);
-      const script = document.createElement("script");
-      script.src = chrome.runtime.getURL("node_modules/tesseract.js/dist/tesseract.min.js");
-      (document.head || document.documentElement).appendChild(script);
+      const base64Image = canvas.toDataURL("image/png");
 
-      await new Promise((resolve) => {
-        script.onload = resolve;
+      // Send base64 image to background script for API processing
+      const response = await chrome.runtime.sendMessage({
+        type: "SOLVE_CAPTCHA_API",
+        imageBase64: base64Image
       });
-    }
 
-    try {
-      const { data: { text } } = await Tesseract.recognize(
-        imageSource,
-        "eng",
-        {
-          workerPath: chrome.runtime.getURL("tesseract-worker.min.js"),
-          corePath: chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js"),
-          langPath: chrome.runtime.getURL("tessdata/"),
-          cacheMethod: 'none',
-          gzip: false,
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
-          tessedit_pageseg_mode: 7, // Single text line
+      // FIXED LINE: changed imageBase64 to base64Image
+      console.log({ base64Image })
 
-          logger: (m) => {
-            if (m.status === "recognizing text" && m.progress !== undefined) {
-              notice(`Extracting text: ${Math.round(m.progress * 100)}%`, false);
-            }
-          }
-        }
-      );
-
-      // Clean, filter, and convert to uppercase
-      let cleaned = (text || "").replace(/[^a-zA-Z0-9]/g, "").trim().toUpperCase();
-
-      // --- LENGTH & INTEGRITY GUARD ---
-      // If Tesseract returns fewer than 6 characters due to merging, 
-      // alert the user or log it so you know a misread occurred.
-      if (cleaned.length !== 6) {
-        console.warn(`[OCR Warning] Expected 6 characters, but got ${cleaned.length}: "${cleaned}"`);
+      if (response?.error) {
+        throw new Error(response.error);
       }
 
-      console.log("[OCR Result] Final Cleaned Text:", cleaned);
-      notice(`OCR Extracted: ${cleaned}`, false);
+      let cleaned = (response?.text || "").replace(/[^a-zA-Z0-9]/g, "").trim().toUpperCase();
+
+      if (cleaned.length > 6) {
+        cleaned = cleaned.substring(0, 6);
+      }
+
+      console.log("[API OCR Result]:", cleaned);
+      notice(`API Solved: ${cleaned}`, false);
       return cleaned;
 
     } catch (err) {
-      console.error("Tesseract OCR error:", err);
-      notice("Failed to extract text from logo.", true);
+      console.error("API Vision error:", err);
+      notice("Failed to solve captcha via API.", true);
       return null;
     }
   }
-
 
 
 
