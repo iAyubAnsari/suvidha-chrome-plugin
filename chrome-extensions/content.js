@@ -1382,7 +1382,6 @@
     }
     async function extractLogoText() {
       const img = document.getElementById("captcha");
-      console.log({ img });
       if (!img) {
         notice("Logo image element not found.", true);
         return null;
@@ -1391,7 +1390,7 @@
       let imageSource = img;
       try {
         const canvas = document.createElement("canvas");
-        const scale = 3;
+        const scale = 4;
         canvas.width = (img.naturalWidth || img.width || 200) * scale;
         canvas.height = (img.naturalHeight || img.height || 50) * scale;
         const ctx = canvas.getContext("2d");
@@ -1406,8 +1405,11 @@
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
-            const brightness = r * 0.299 + g * 0.587 + b * 0.114;
-            if (brightness > 150) {
+            if (Math.abs(r - g) < 15 && Math.abs(g - b) < 15 && r > 80 && r < 200) {
+              data[i] = 255;
+              data[i + 1] = 255;
+              data[i + 2] = 255;
+            } else if (r + g + b > 450) {
               data[i] = 255;
               data[i + 1] = 255;
               data[i + 2] = 255;
@@ -1443,10 +1445,9 @@
             langPath: chrome.runtime.getURL("tessdata/"),
             cacheMethod: "none",
             gzip: false,
-            // Allow both upper and lowercase letters + numbers during scan
             tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
             tessedit_pageseg_mode: 7,
-            // Single text line mode to prevent dropping characters
+            // Single text line
             logger: (m) => {
               if (m.status === "recognizing text" && m.progress !== void 0) {
                 notice(`Extracting text: ${Math.round(m.progress * 100)}%`, false);
@@ -1454,12 +1455,15 @@
             }
           }
         );
-        const cleaned = (text || "").replace(/[^a-zA-Z0-9]/g, "").trim().toUpperCase();
-        console.log("[OCR Result] Extracted & Capitalized text:", cleaned);
+        let cleaned = (text || "").replace(/[^a-zA-Z0-9]/g, "").trim().toUpperCase();
+        if (cleaned.length !== 6) {
+          console.warn(`[OCR Warning] Expected 6 characters, but got ${cleaned.length}: "${cleaned}"`);
+        }
+        console.log("[OCR Result] Final Cleaned Text:", cleaned);
         notice(`OCR Extracted: ${cleaned}`, false);
         return cleaned;
       } catch (err) {
-        console.error("Tesseract OCR single-thread injection failed:", err);
+        console.error("Tesseract OCR error:", err);
         notice("Failed to extract text from logo.", true);
         return null;
       }
