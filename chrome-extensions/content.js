@@ -1390,15 +1390,15 @@
       notice("Reading text from image...", false);
       let imageSource = img;
       try {
-        if (img.src && !img.src.startsWith("data:")) {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth || img.width || 200;
-          canvas.height = img.naturalHeight || img.height || 50;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0);
-            imageSource = canvas.toDataURL("image/png");
-          }
+        const canvas = document.createElement("canvas");
+        const scale = 3;
+        canvas.width = (img.naturalWidth || img.width || 200) * scale;
+        canvas.height = (img.naturalHeight || img.height || 50) * scale;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          imageSource = canvas.toDataURL("image/png");
         }
       } catch (e) {
         imageSource = img.src || img;
@@ -1420,10 +1420,11 @@
             workerPath: chrome.runtime.getURL("tesseract-worker.min.js"),
             corePath: chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js"),
             langPath: chrome.runtime.getURL("tessdata/"),
-            // Directs worker to your local src/tessdata folder
             cacheMethod: "none",
             gzip: false,
-            // MANDATORY: Instructs the local worker to read your local raw .gz file natively without hitting remote fetch mirrors
+            // IMPROVEMENT 2: Enforce strict character boundary whitelist.
+            // This forces Tesseract to only output capital letters and numbers.
+            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
             logger: (m) => {
               if (m.status === "recognizing text" && m.progress !== void 0) {
                 notice(`Extracting text: ${Math.round(m.progress * 100)}%`, false);
@@ -1431,8 +1432,8 @@
             }
           }
         );
-        const cleaned = (text || "").trim().replace(/\s+/g, "").toUpperCase();
-        console.log("[OCR Result] Extracted text (UPPERCASE):", cleaned);
+        const cleaned = (text || "").replace(/[^A-Z0-9]/g, "").trim();
+        console.log("[OCR Result] Extracted text (Whitelisted):", cleaned);
         notice(`OCR Extracted: ${cleaned}`, false);
         return cleaned;
       } catch (err) {
@@ -1714,7 +1715,7 @@
                       return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
                     });
                     if (paymentBtn) {
-                      notice("Captcha typed! Clicking Proceed to payment...", false);
+                      notice("text typed! Clicking Proceed to payment...", false);
                       const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
                       paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
                       paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));

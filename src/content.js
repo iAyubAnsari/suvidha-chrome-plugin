@@ -34,10 +34,8 @@ import Tesseract from "tesseract.js";
     box.textContent = message;
   }
 
-  // Extract text from image with id="captcha" via Single-Threaded Main Frame execution
-  // Extract text from image with id="captcha" via Single-Threaded Main Frame execution
   async function extractLogoText() {
-    const img = document.getElementById("captcha")
+    const img = document.getElementById("captcha");
     console.log({ img });
     if (!img) {
       notice("Logo image element not found.", true);
@@ -48,15 +46,17 @@ import Tesseract from "tesseract.js";
 
     let imageSource = img;
     try {
-      if (img.src && !img.src.startsWith("data:")) {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth || img.width || 200;
-        canvas.height = img.naturalHeight || img.height || 50;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          imageSource = canvas.toDataURL("image/png");
-        }
+      // IMPROVEMENT 1: Scale up the image canvas (3x) to give Tesseract's 
+      // LSTM engine sharp pixel definitions, heavily reducing 5/S and 0/O confusion.
+      const canvas = document.createElement("canvas");
+      const scale = 3;
+      canvas.width = (img.naturalWidth || img.width || 200) * scale;
+      canvas.height = (img.naturalHeight || img.height || 50) * scale;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.imageSmoothingEnabled = false; // Keeps edges sharp instead of blurry
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        imageSource = canvas.toDataURL("image/png");
       }
     } catch (e) {
       imageSource = img.src || img;
@@ -75,16 +75,20 @@ import Tesseract from "tesseract.js";
     }
 
     try {
-      // Direct call to Tesseract.recognize forces execution on the main context block
       const { data: { text } } = await Tesseract.recognize(
         imageSource,
         "eng",
         {
           workerPath: chrome.runtime.getURL("tesseract-worker.min.js"),
           corePath: chrome.runtime.getURL("tesseract-core-simd-lstm.wasm.js"),
-          langPath: chrome.runtime.getURL("tessdata/"), // Directs worker to your local src/tessdata folder
+          langPath: chrome.runtime.getURL("tessdata/"),
           cacheMethod: 'none',
-          gzip: false, // MANDATORY: Instructs the local worker to read your local raw .gz file natively without hitting remote fetch mirrors
+          gzip: false,
+
+          // IMPROVEMENT 2: Enforce strict character boundary whitelist.
+          // This forces Tesseract to only output capital letters and numbers.
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+
           logger: (m) => {
             if (m.status === "recognizing text" && m.progress !== undefined) {
               notice(`Extracting text: ${Math.round(m.progress * 100)}%`, false);
@@ -93,8 +97,10 @@ import Tesseract from "tesseract.js";
         }
       );
 
-      const cleaned = (text || "").trim().replace(/\s+/g, "").toUpperCase();
-      console.log("[OCR Result] Extracted text (UPPERCASE):", cleaned);
+      // IMPROVEMENT 3: Safety fallback regex to strip out any stray non-alphanumeric marks
+      const cleaned = (text || "").replace(/[^A-Z0-9]/g, "").trim();
+
+      console.log("[OCR Result] Extracted text (Whitelisted):", cleaned);
       notice(`OCR Extracted: ${cleaned}`, false);
       return cleaned;
 
@@ -459,7 +465,7 @@ import Tesseract from "tesseract.js";
                   });
 
                   if (paymentBtn) {
-                    notice("Captcha typed! Clicking Proceed to payment...", false);
+                    notice("text typed! Clicking Proceed to payment...", false);
                     const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
                     paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
                     paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
