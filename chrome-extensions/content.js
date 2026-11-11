@@ -1497,33 +1497,40 @@
         const p2 = parseInt(slash[2], 10);
         if (p1 > 12) return p1;
         if (p2 > 12) return p2;
-        if (p2 === 11) return p1;
-        if (p1 === 11) return p2;
         return p1;
       }
       const num = parseInt(str, 10);
       if (!isNaN(num) && num >= 1 && num <= 31) return num;
       return null;
     }
-    function findAvailableSlot(targetDay) {
+    function findAvailableSlot(targetDay, targetDateIso = null) {
       const slots = [...document.querySelectorAll(".slot_available, .slot_available_reschedule, [data-booking_date]")];
-      if (slots.length > 0) {
-        if (targetDay !== null) {
-          const match = slots.find((s) => {
-            const bd = (s.getAttribute("data-booking_date") || s.dataset?.booking_date || s.dataset?.bookingDate || "").trim();
-            const ymd = bd.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-            if (ymd && parseInt(ymd[3], 10) === targetDay) return true;
-            const cell = s.closest && s.closest("td, div[class*='cell'], div[class*='day']") || s.parentElement;
-            if (cell) {
-              const txt = (cell.innerText || cell.textContent || "").trim();
-              const tokens = txt.split(/[\s\n\r\t]+/);
-              if (tokens.some((t) => t.replace(/\D/g, "") === String(targetDay))) return true;
-            }
-            return false;
-          });
-          if (match) return match;
+      if (targetDay === null && !targetDateIso) {
+        if (slots.length > 0) return slots[0];
+        const cells2 = [...document.querySelectorAll("td, div[class*='cell'], div[class*='day']")];
+        for (const cell of cells2) {
+          const action = cell.querySelector("a, button, [class*='badge'], [class*='slot'], i.fa, i[class*='plus']");
+          if (action) return action.closest && action.closest("a, button, [onclick]") || action;
         }
-        return slots[0];
+        return null;
+      }
+      if (slots.length > 0) {
+        const match = slots.find((s) => {
+          const bd = (s.getAttribute("data-booking_date") || s.dataset?.booking_date || s.dataset?.bookingDate || "").trim();
+          if (targetDateIso && bd) {
+            return bd === targetDateIso;
+          }
+          const ymd = bd.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+          if (ymd && parseInt(ymd[3], 10) === targetDay) return true;
+          const cell = s.closest && s.closest("td, div[class*='cell'], div[class*='day']") || s.parentElement;
+          if (cell) {
+            const txt = (cell.innerText || cell.textContent || "").trim();
+            const tokens = txt.split(/[\s\n\r\t]+/);
+            if (tokens.some((t) => t.replace(/\D/g, "") === String(targetDay))) return true;
+          }
+          return false;
+        });
+        if (match) return match;
       }
       const cells = [...document.querySelectorAll("td, div[class*='cell'], div[class*='day']")];
       if (targetDay !== null) {
@@ -1555,15 +1562,21 @@
         target.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
         target.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
         try {
-          const clickEvent = new PointerEvent("click", {
-            bubbles: true,
-            cancelable: true,
-            view: window
-          });
-          target.dispatchEvent(clickEvent);
+          if (typeof PointerEvent !== "undefined") {
+            const clickEvent = new PointerEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            target.dispatchEvent(clickEvent);
+          } else {
+            target.click?.();
+          }
         } catch (clickErr) {
           if (typeof target.onclick === "function") {
             target.onclick();
+          } else {
+            target.click?.();
           }
         }
         const form = target.closest && target.closest("form") || document.querySelector("form");
@@ -1624,16 +1637,21 @@
         }
       }
       if (profile.autoSlot !== false) {
-        const targetDay = extractDay(profile.slotDate) || extractDay(profile.lcDate);
+        const isFirstAvailable = profile.slotMode === "first" || !profile.slotMode && !profile.slotDate;
+        const rawSlotDate = isFirstAvailable ? "" : (profile.slotDate || "").trim();
+        const targetDateIso = /^\d{4}-\d{2}-\d{2}$/.test(rawSlotDate) ? rawSlotDate : null;
+        const targetDay = isFirstAvailable ? null : extractDay(rawSlotDate);
         const slotElement = await waitFor(() => {
-          return findAvailableSlot(targetDay);
+          return findAvailableSlot(targetDay, targetDateIso);
         }, 8e3);
         if (slotElement) {
-          notice(`Found available slot for ${targetDay ? "day " + targetDay : "date"}. Opening booking form...`, false);
+          const label = targetDateIso || (targetDay ? `day ${targetDay}` : "first available date");
+          notice(`Found available slot for ${label}. Opening booking form...`, false);
           setTimeout(() => selectAndSubmitSlot(slotElement), 350);
-          return `Slot selected for ${targetDay ? "day " + targetDay : "date"}. Opening booking form...`;
+          return `Slot selected for ${label}. Opening booking form...`;
         } else {
-          notice("Calendar loaded. Please click the desired slot (+).", false);
+          const msg = rawSlotDate ? `Selected date (${rawSlotDate}) is not available. Please click a slot (+) manually.` : "Calendar loaded. Please click the desired slot (+).";
+          notice(msg, Boolean(rawSlotDate));
           return "Waiting for manual slot click.";
         }
       }
@@ -1699,33 +1717,26 @@
             logoInput.focus();
             console.log({ text });
             const extractedText = text;
-            if (text) {
-              logoInput.value = "";
-              let index = 0;
-              const typingInterval = setInterval(() => {
-                logoInput.value += extractedText[index];
-                logoInput.dispatchEvent(new Event("input", { bubbles: true }));
-                logoInput.dispatchEvent(new Event("change", { bubbles: true }));
-                index++;
-                if (index >= extractedText.length) {
-                  clearInterval(typingInterval);
-                  setTimeout(() => {
-                    const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find((el) => {
-                      const txt = norm(el.innerText || el.value || el.textContent || "");
-                      return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
-                    });
-                    if (paymentBtn) {
-                      notice("text typed! Clicking Proceed to payment...", false);
-                      const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-                      paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-                      paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-                      paymentBtn.click();
-                    } else {
-                      notice("Proceed to payment button not found.", true);
-                    }
-                  }, 350);
+            if (extractedText) {
+              logoInput.value = extractedText;
+              logoInput.dispatchEvent(new Event("input", { bubbles: true }));
+              logoInput.dispatchEvent(new Event("change", { bubbles: true }));
+              notice(`Typed full code: ${extractedText}`, false);
+              setTimeout(() => {
+                const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find((el) => {
+                  const txt = norm(el.innerText || el.value || el.textContent || "");
+                  return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
+                });
+                if (paymentBtn) {
+                  notice("Clicking Proceed to payment...", false);
+                  const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+                  paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+                  paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+                  paymentBtn.click();
+                } else {
+                  notice("Proceed to payment button not found.", true);
                 }
-              }, 200);
+              }, 350);
             }
           }
         });

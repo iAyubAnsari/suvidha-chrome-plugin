@@ -47,9 +47,8 @@ test('1. Manifest Validation', async (t) => {
 
 test('2. Popup HTML and DOM ID Alignment', () => {
   const popupHtml = fs.readFileSync(path.join(PROJECT_DIR, 'popup.html'), 'utf8');
-  // here we chnage
   const expectedIds = [
-    'goodsType', 'goodsCategory', 'slotDate', 'autoSlot',
+    'goodsType', 'goodsCategory', 'slotMode', 'slotDateWrapper', 'slotDate', 'autoSlot',
     'goods', 'udin', 'lcNumber', 'lcDate', 'importer', 'vehicles',
     'autoCalc', 'autoRun', 'save', 'fill', 'status'
   ];
@@ -59,25 +58,25 @@ test('2. Popup HTML and DOM ID Alignment', () => {
   }
 });
 
-// now come to this we can modify this
-
 test('3. Popup Logic (popup.js)', async (t) => {
   const popupJsCode = fs.readFileSync(path.join(PROJECT_DIR, 'popup.js'), 'utf8');
 
   function createPopupContext(initialStorage = {}, tabUrl = 'https://suvidha-mp.wb.gov.in/exporter-oth/avilable-slot') {
     const elements = {};
     const ids = [
-      'goodsType', 'goodsCategory', 'slotDate', 'autoSlot',
+      'goodsType', 'goodsCategory', 'slotMode', 'slotDateWrapper', 'slotDate', 'autoSlot',
       'goods', 'udin', 'lcNumber', 'lcDate', 'importer', 'vehicles',
       'autoCalc', 'autoRun', 'save', 'fill', 'status'
     ];
     ids.forEach(id => {
       elements[id] = {
         id,
-        value: '',
+        value: id === 'slotMode' ? 'first' : '',
         checked: false,
         textContent: '',
-        onclick: null
+        onclick: null,
+        onchange: null,
+        style: { display: id === 'slotDateWrapper' ? 'none' : 'block' }
       };
     });
 
@@ -162,6 +161,8 @@ test('3. Popup Logic (popup.js)', async (t) => {
 
     assert.equal(elements.goodsType.value, 'NON-PERISHABLE');
     assert.equal(elements.goodsCategory.value, 'OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)');
+    assert.equal(elements.slotMode.value, 'custom');
+    assert.equal(elements.slotDateWrapper.style.display, 'block');
     assert.equal(elements.slotDate.value, '2026-11-08');
     assert.equal(elements.autoSlot.checked, true);
     assert.equal(elements.goods.value, 'Rice');
@@ -180,6 +181,7 @@ test('3. Popup Logic (popup.js)', async (t) => {
 
     elements.goodsType.value = 'NON-PERISHABLE';
     elements.goodsCategory.value = 'STONE CHIPS (UP TO 12 WHEELER)';
+    elements.slotMode.value = 'custom';
     elements.slotDate.value = '2026-11-08';
     elements.autoSlot.checked = true;
     elements.goods.value = 'Basmati Rice';
@@ -196,6 +198,7 @@ test('3. Popup Logic (popup.js)', async (t) => {
     assert.deepEqual(JSON.parse(JSON.stringify(storage.profile)), {
       goodsType: 'NON-PERISHABLE',
       goodsCategory: 'STONE CHIPS (UP TO 12 WHEELER)',
+      slotMode: 'custom',
       slotDate: '2026-11-08',
       goods: 'Basmati Rice',
       udin: 'UDIN999',

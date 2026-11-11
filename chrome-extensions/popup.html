@@ -1,102 +1,242 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<meta charset="UTF-8">
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { width: 360px; padding: 14px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; font-size: 13px; color: #222; background: #fafafa; }
-h2 { color: #531b91; font-size: 17px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
-.badge-version { font-size: 11px; font-weight: normal; background: #e8dbf7; color: #531b91; padding: 2px 7px; border-radius: 10px; }
-.section { background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-.section-title { font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
-label { display: block; margin-top: 8px; font-weight: 600; font-size: 12px; color: #334155; }
-label:first-of-type { margin-top: 2px; }
-input, select { width: 100%; padding: 7px 9px; margin-top: 4px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 13px; background: #fff; }
-input:focus, select:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124,58,237,0.15); }
-.checkbox-label { display: flex; align-items: center; gap: 7px; font-weight: 500; margin-top: 8px; cursor: pointer; }
-.checkbox-label input { width: auto; margin: 0; }
-.btn-primary { width: 100%; padding: 9px; margin-top: 8px; border: none; border-radius: 5px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
-#fill { background: #531b91; color: white; margin-top: 10px; }
-#fill:hover { background: #431475; }
-#save { background: #e2e8f0; color: #1e293b; }
-#save:hover { background: #cbd5e1; }
-#status { margin-top: 8px; font-size: 12px; line-height: 1.4; text-align: center; min-height: 18px; color: #475569; word-break: break-word; }
-.helper-text { font-size: 11px; color: #64748b; margin-top: 3px; }
-</style>
+  <meta charset="UTF-8">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 360px;
+      padding: 14px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      font-size: 13px;
+      color: #222;
+      background: #fafafa;
+    }
+
+    h2 {
+      color: #531b91;
+      font-size: 17px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badge-version {
+      font-size: 11px;
+      font-weight: normal;
+      background: #e8dbf7;
+      color: #531b91;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+
+    .section {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 4px;
+    }
+
+    label {
+      display: block;
+      margin-top: 8px;
+      font-weight: 600;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    label:first-of-type {
+      margin-top: 2px;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 7px 9px;
+      margin-top: 4px;
+      border: 1px solid #cbd5e1;
+      border-radius: 5px;
+      font-size: 13px;
+      background: #fff;
+    }
+
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-weight: 500;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+
+    .checkbox-label input {
+      width: auto;
+      margin: 0;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 9px;
+      margin-top: 8px;
+      border: none;
+      border-radius: 5px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    #fill {
+      background: #531b91;
+      color: white;
+      margin-top: 10px;
+    }
+
+    #fill:hover {
+      background: #431475;
+    }
+
+    #save {
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+
+    #save:hover {
+      background: #cbd5e1;
+    }
+
+    #status {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      text-align: center;
+      min-height: 18px;
+      color: #475569;
+      word-break: break-word;
+    }
+
+    .helper-text {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 3px;
+    }
+  </style>
 </head>
+
 <body>
-<h2>
-  Suvidha Booking Assistant
-  <span class="badge-version">v1.1.0</span>
-</h2>
+  <h2>
+    Suvidha Booking Assistant
+    <span class="badge-version">v1.1.0</span>
+  </h2>
 
-<!-- Section 1: Step 1-3 Slot Selection -->
-<div class="section">
-  <div class="section-title">1. Slot & Calendar Setup</div>
-  
-  <label for="goodsType">Type of Goods</label>
-  <select id="goodsType">
-    <option value="NON-PERISHABLE">NON-PERISHABLE</option>
-    <option value="PERISHABLE AND PRIORITY GOODS">PERISHABLE AND PRIORITY GOODS</option>
-  </select>
+  <!-- Section 1: Step 1-3 Slot Selection -->
+  <div class="section">
+    <div class="section-title">1. Slot & Calendar Setup</div>
 
-  <label for="goodsCategory">Vehicle / Goods Category</label>
-  <select id="goodsCategory">
-    <option value="OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)">OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)</option>
-    <option value="OTHERS - NON PERISHABLE (MORE THAN 06 WHEELER TO 12 WHEELER)">OTHERS - NON PERISHABLE (MORE THAN 06 WHEELER TO 12 WHEELER)</option>
-    <option value="OTHERS - NON PERISHABLE (14 WHEELER TO 18 WHEELER)">OTHERS - NON PERISHABLE (14 WHEELER TO 18 WHEELER)</option>
-    <option value="OTHERS - NON PERISHABLE (20 WHEELER AND ABOVE)">OTHERS - NON PERISHABLE (20 WHEELER AND ABOVE)</option>
-    <option value="STONE CHIPS (UP TO 12 WHEELER)">STONE CHIPS (UP TO 12 WHEELER)</option>
-    <option value="COTTON / YARN / FABRIC / SOFTEX 100 / TEXTILE FINISHING AGENT / SILK WASTE (MORE THAN 06 WHEELER TO 12 WHEELER)">COTTON / YARN / FABRIC (MORE THAN 06 TO 12 WHEELERS)</option>
-  </select>
+    <label for="goodsType">Type of Goods</label>
+    <select id="goodsType">
+      <option value="NON-PERISHABLE">NON-PERISHABLE</option>
+      <option value="PERISHABLE AND PRIORITY GOODS">PERISHABLE AND PRIORITY GOODS</option>
+    </select>
 
-  <label for="slotDate">Target Slot Date</label>
-  <input id="slotDate" type="date">
-  <div class="helper-text">Select date to auto-click '+' on the calendar (e.g., 2026-11-08)</div>
+    <label for="goodsCategory">Vehicle / Goods Category</label>
+    <select id="goodsCategory">
+      <option value="OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)">OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)</option>
+      <option value="OTHERS - NON PERISHABLE (MORE THAN 06 WHEELER TO 12 WHEELER)">OTHERS - NON PERISHABLE (MORE THAN 06
+        WHEELER TO 12 WHEELER)</option>
+      <option value="OTHERS - NON PERISHABLE (14 WHEELER TO 18 WHEELER)">OTHERS - NON PERISHABLE (14 WHEELER TO 18
+        WHEELER)</option>
+      <option value="OTHERS - NON PERISHABLE (20 WHEELER AND ABOVE)">OTHERS - NON PERISHABLE (20 WHEELER AND ABOVE)
+      </option>
+      <option value="STONE CHIPS (UP TO 12 WHEELER)">STONE CHIPS (UP TO 12 WHEELER)</option>
+      <option
+        value="COTTON / YARN / FABRIC / SOFTEX 100 / TEXTILE FINISHING AGENT / SILK WASTE (MORE THAN 06 WHEELER TO 12 WHEELER)">
+        COTTON / YARN / FABRIC (MORE THAN 06 TO 12 WHEELERS)</option>
+    </select>
 
-  <label class="checkbox-label">
-    <input type="checkbox" id="autoSlot" checked>
-    <span>Auto-click '+' slot on calendar</span>
-  </label>
-</div>
+    <label for="slotMode">Slot Selection Mode</label>
+    <select id="slotMode">
+      <option value="first">First Available (+ icon)</option>
+      <option value="custom">Select Own Date</option>
+    </select>
 
-<!-- Section 2: Step 4 Booking Form Details -->
-<div class="section">
-  <div class="section-title">2. Exporter Booking Details</div>
+    <div id="slotDateWrapper" style="display: none;">
+      <label for="slotDate">Target Slot Date</label>
+      <input id="slotDate" type="date">
+      <div class="helper-text">Select date to auto-click '+' on the calendar (e.g., 2026-11-08)</div>
+    </div>
 
-  <label for="goods">Name of the Goods</label>
-  <input id="goods" placeholder="e.g. Basmati Rice / Wheat / Maize">
+    <label class="checkbox-label">
+      <input type="checkbox" id="autoSlot" checked>
+      <span>Auto-click '+' slot on calendar</span>
+    </label>
+  </div>
 
-  <label for="udin">UDIN of LC</label>
-  <input id="udin" maxlength="25" placeholder="Enter 25 alphanumeric UDIN">
+  <!-- Section 2: Step 4 Booking Form Details -->
+  <div class="section">
+    <div class="section-title">2. Exporter Booking Details</div>
 
-  <label for="lcNumber">LC Number</label>
-  <input id="lcNumber" placeholder="Enter LC Number">
+    <label for="goods">Name of the Goods</label>
+    <input id="goods" placeholder="e.g. Basmati Rice / Wheat / Maize">
 
-  <label for="lcDate">LC Date</label>
-  <input id="lcDate" type="date">
+    <label for="udin">UDIN of LC</label>
+    <input id="udin" maxlength="25" placeholder="Enter 25 alphanumeric UDIN">
 
-  <label for="importer">Name of the Importer</label>
-  <input id="importer" placeholder="Enter importer company name">
+    <label for="lcNumber">LC Number</label>
+    <input id="lcNumber" placeholder="Enter LC Number">
 
-  <label for="vehicles">Total Number of Vehicles</label>
-  <input id="vehicles" type="number" min="1" value="1">
+    <label for="lcDate">LC Date</label>
+    <input id="lcDate" type="date">
 
-  <label class="checkbox-label">
-    <input type="checkbox" id="autoCalc" checked>
-    <span>Auto-click Calculate button</span>
-  </label>
+    <label for="importer">Name of the Importer</label>
+    <input id="importer" placeholder="Enter importer company name">
 
-  <label class="checkbox-label">
-    <input type="checkbox" id="autoRun" checked>
-    <span>Auto-fill immediately when page loads</span>
-  </label>
-</div>
+    <label for="vehicles">Total Number of Vehicles</label>
+    <input id="vehicles" type="number" min="1" value="1">
 
-<button id="save" class="btn-primary">Save Profile</button>
-<button id="fill" class="btn-primary">Autofill Current Page</button>
-<div id="status"></div>
+    <label class="checkbox-label">
+      <input type="checkbox" id="autoCalc" checked>
+      <span>Auto-click Calculate button</span>
+    </label>
 
-<script src="popup.js"></script>
+    <label class="checkbox-label">
+      <input type="checkbox" id="autoRun" checked>
+      <span>Auto-fill immediately when page loads</span>
+    </label>
+  </div>
+
+  <button id="save" class="btn-primary">Save Profile</button>
+  <button id="fill" class="btn-primary">Autofill Current Page</button>
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
 </body>
+
 </html>

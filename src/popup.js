@@ -1,15 +1,29 @@
 const textIds = [
-  "goodsType", "goodsCategory", "slotDate",
+  "goodsType", "goodsCategory", "slotMode", "slotDate",
   "goods", "udin", "lcNumber", "lcDate", "importer", "vehicles"
 ];
 const boolIds = ["autoSlot", "autoCalc", "autoRun"];
 const statusEl = document.getElementById("status");
+const slotModeEl = document.getElementById("slotMode");
+const slotDateWrapperEl = document.getElementById("slotDateWrapper");
+
+function syncSlotModeUI() {
+  if (!slotModeEl) return;
+  const isCustom = slotModeEl.value === "custom";
+  if (slotDateWrapperEl && slotDateWrapperEl.style) {
+    slotDateWrapperEl.style.display = isCustom ? "block" : "none";
+  }
+}
+
+if (slotModeEl) {
+  slotModeEl.onchange = syncSlotModeUI;
+}
 
 function getProfile() {
   const p = {};
   textIds.forEach(id => {
     const el = document.getElementById(id);
-    if (el) p[id] = el.value.trim();
+    if (el) p[id] = (el.value || "").trim();
   });
   boolIds.forEach(id => {
     const el = document.getElementById(id);
@@ -20,15 +34,22 @@ function getProfile() {
 
 // Load saved profile on popup open
 chrome.storage.local.get("profile", ({ profile }) => {
-  if (!profile) return;
+  if (!profile) {
+    syncSlotModeUI();
+    return;
+  }
   textIds.forEach(id => {
     const el = document.getElementById(id);
     if (el && profile[id] !== undefined) el.value = profile[id];
   });
+  if (slotModeEl && !profile.slotMode) {
+    slotModeEl.value = profile.slotDate ? "custom" : "first";
+  }
   boolIds.forEach(id => {
     const el = document.getElementById(id);
     if (el && profile[id] !== undefined) el.checked = Boolean(profile[id]);
   });
+  syncSlotModeUI();
 });
 
 document.getElementById("save").onclick = async () => {

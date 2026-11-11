@@ -179,16 +179,14 @@ import Tesseract from "tesseract.js";
     // YYYY-MM-DD
     const ymd = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     if (ymd) return parseInt(ymd[3], 10);
-    // MM/DD/YYYY or DD/MM/YYYY
+    // DD/MM/YYYY or MM/DD/YYYY
     const slash = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (slash) {
       const p1 = parseInt(slash[1], 10);
       const p2 = parseInt(slash[2], 10);
-      if (p1 > 12) return p1;
-      if (p2 > 12) return p2;
-      if (p2 === 11) return p1; // e.g. 08/11/2026 -> 8 in November
-      if (p1 === 11) return p2; // e.g. 11/08/2026 -> 8 in November
-      return p1;
+      if (p1 > 12) return p1; // DD/MM/YYYY
+      if (p2 > 12) return p2; // MM/DD/YYYY
+      return p1; // Default DD/MM/YYYY
     }
     const num = parseInt(str, 10);
     if (!isNaN(num) && num >= 1 && num <= 31) return num;
@@ -196,32 +194,42 @@ import Tesseract from "tesseract.js";
   }
 
   // Find .slot_available element on the Suvidha calendar
-  function findAvailableSlot(targetDay) {
+  function findAvailableSlot(targetDay, targetDateIso = null) {
     // Check .slot_available elements directly (the official portal class)
     const slots = [...document.querySelectorAll(".slot_available, .slot_available_reschedule, [data-booking_date]")];
 
-    if (slots.length > 0) {
-      if (targetDay !== null) {
-        // Find slot whose date ends with targetDay (e.g. 2026-11-08)
-        const match = slots.find(s => {
-          const bd = (s.getAttribute("data-booking_date") || s.dataset?.booking_date || s.dataset?.bookingDate || "").trim();
-          const ymd = bd.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-          if (ymd && parseInt(ymd[3], 10) === targetDay) return true;
-          const cell = (s.closest && s.closest("td, div[class*='cell'], div[class*='day']")) || s.parentElement;
-          if (cell) {
-            const txt = (cell.innerText || cell.textContent || "").trim();
-            const tokens = txt.split(/[\s\n\r\t]+/);
-            if (tokens.some(t => t.replace(/\D/g, "") === String(targetDay))) return true;
-          }
-          return false;
-        });
-        if (match) return match;
+    // Mode 1: First available '+' slot (when no custom target date is requested)
+    if (targetDay === null && !targetDateIso) {
+      if (slots.length > 0) return slots[0];
+      const cells = [...document.querySelectorAll("td, div[class*='cell'], div[class*='day']")];
+      for (const cell of cells) {
+        const action = cell.querySelector("a, button, [class*='badge'], [class*='slot'], i.fa, i[class*='plus']");
+        if (action) return (action.closest && action.closest("a, button, [onclick]")) || action;
       }
-      // Return first available slot
-      return slots[0];
+      return null;
     }
 
-    // Fallback: search calendar cells
+    // Mode 2: Specific date requested by user (do not silently fall back to slots[0])
+    if (slots.length > 0) {
+      const match = slots.find(s => {
+        const bd = (s.getAttribute("data-booking_date") || s.dataset?.booking_date || s.dataset?.bookingDate || "").trim();
+        if (targetDateIso && bd) {
+          return bd === targetDateIso;
+        }
+        const ymd = bd.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (ymd && parseInt(ymd[3], 10) === targetDay) return true;
+        const cell = (s.closest && s.closest("td, div[class*='cell'], div[class*='day']")) || s.parentElement;
+        if (cell) {
+          const txt = (cell.innerText || cell.textContent || "").trim();
+          const tokens = txt.split(/[\s\n\r\t]+/);
+          if (tokens.some(t => t.replace(/\D/g, "") === String(targetDay))) return true;
+        }
+        return false;
+      });
+      if (match) return match;
+    }
+
+    // Fallback: search calendar cells for the specific targetDay
     const cells = [...document.querySelectorAll("td, div[class*='cell'], div[class*='day']")];
     if (targetDay !== null) {
       const targetCell = cells.find(cell => {
@@ -272,16 +280,22 @@ import Tesseract from "tesseract.js";
 
       // 2. Safely call click handlers while bypassing inline 'javascript:' anchors via PointerEvent
       try {
-        const clickEvent = new PointerEvent("click", {
-          bubbles: true,
-          cancelable: true,
-          view: window
-        });
-        target.dispatchEvent(clickEvent);
+        if (typeof PointerEvent !== "undefined") {
+          const clickEvent = new PointerEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          });
+          target.dispatchEvent(clickEvent);
+        } else {
+          target.click?.();
+        }
       } catch (clickErr) {
         // Fallback catch buffer if synthetic dispatch encounters portal boundaries
         if (typeof target.onclick === "function") {
           target.onclick();
+        } else {
+          target.click?.();
         }
       }
 
@@ -353,20 +367,27 @@ import Tesseract from "tesseract.js";
       }
     }
 
-    // 3. Wait for Calendar to render and click the target date's slot
+    // 3. Wait for Calendar to render and click the target date's slot (or first available '+' slot)
     if (profile.autoSlot !== false) {
-      const targetDay = extractDay(profile.slotDate) || extractDay(profile.lcDate);
+      const isFirstAvailable = profile.slotMode === "first" || (!profile.slotMode && !profile.slotDate);
+      const rawSlotDate = isFirstAvailable ? "" : (profile.slotDate || "").trim();
+      const targetDateIso = /^\d{4}-\d{2}-\d{2}$/.test(rawSlotDate) ? rawSlotDate : null;
+      const targetDay = isFirstAvailable ? null : extractDay(rawSlotDate);
 
       const slotElement = await waitFor(() => {
-        return findAvailableSlot(targetDay);
+        return findAvailableSlot(targetDay, targetDateIso);
       }, 8000);
 
       if (slotElement) {
-        notice(`Found available slot for ${targetDay ? 'day ' + targetDay : 'date'}. Opening booking form...`, false);
+        const label = targetDateIso || (targetDay ? `day ${targetDay}` : "first available date");
+        notice(`Found available slot for ${label}. Opening booking form...`, false);
         setTimeout(() => selectAndSubmitSlot(slotElement), 350);
-        return `Slot selected for ${targetDay ? 'day ' + targetDay : 'date'}. Opening booking form...`;
+        return `Slot selected for ${label}. Opening booking form...`;
       } else {
-        notice("Calendar loaded. Please click the desired slot (+).", false);
+        const msg = rawSlotDate
+          ? `Selected date (${rawSlotDate}) is not available. Please click a slot (+) manually.`
+          : "Calendar loaded. Please click the desired slot (+).";
+        notice(msg, Boolean(rawSlotDate));
         return "Waiting for manual slot click.";
       }
     }
@@ -439,44 +460,35 @@ import Tesseract from "tesseract.js";
           logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
           logoInput.focus();
 
-          console.log({ text })
+          console.log({ text });
           const extractedText = text;
-          if (text) {
-            logoInput.value = "";
-            let index = 0;
+          if (extractedText) {
+            // Set the full text immediately in one go
+            logoInput.value = extractedText;
 
-            const typingInterval = setInterval(() => {
-              logoInput.value += extractedText[index];
+            // Trigger standard events so the form's framework registers it
+            logoInput.dispatchEvent(new Event("input", { bubbles: true }));
+            logoInput.dispatchEvent(new Event("change", { bubbles: true }));
 
-              // CRUCIAL: Triggers page events so the form registers the keystroke
-              logoInput.dispatchEvent(new Event("input", { bubbles: true }));
-              logoInput.dispatchEvent(new Event("change", { bubbles: true }));
+            notice(`Typed full code: ${extractedText}`, false);
 
-              index++;
+            // --- PROCEED TO PAYMENT ---
+            setTimeout(() => {
+              const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find(el => {
+                const txt = norm(el.innerText || el.value || el.textContent || "");
+                return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
+              });
 
-              if (index >= extractedText.length) {
-                clearInterval(typingInterval);
-
-                // --- NEW PROCEED TO PAYMENT CLICKER PATCH ---
-                setTimeout(() => {
-                  const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find(el => {
-                    const txt = norm(el.innerText || el.value || el.textContent || "");
-                    return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
-                  });
-
-                  if (paymentBtn) {
-                    notice("text typed! Clicking Proceed to payment...", false);
-                    const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-                    paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-                    paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-                    paymentBtn.click();
-                  } else {
-                    notice("Proceed to payment button not found.", true);
-                  }
-                }, 350); // 350ms buffer to let form state process cleanly
-                // --------------------------------------------
+              if (paymentBtn) {
+                notice("Clicking Proceed to payment...", false);
+                const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+                paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+                paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+                paymentBtn.click();
+              } else {
+                notice("Proceed to payment button not found.", true);
               }
-            }, 200); // 200ms typing delay per character
+            }, 350);
           }
         }
       });

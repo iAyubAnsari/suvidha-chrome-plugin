@@ -3,6 +3,7 @@
   var textIds = [
     "goodsType",
     "goodsCategory",
+    "slotMode",
     "slotDate",
     "goods",
     "udin",
@@ -13,11 +14,23 @@
   ];
   var boolIds = ["autoSlot", "autoCalc", "autoRun"];
   var statusEl = document.getElementById("status");
+  var slotModeEl = document.getElementById("slotMode");
+  var slotDateWrapperEl = document.getElementById("slotDateWrapper");
+  function syncSlotModeUI() {
+    if (!slotModeEl) return;
+    const isCustom = slotModeEl.value === "custom";
+    if (slotDateWrapperEl && slotDateWrapperEl.style) {
+      slotDateWrapperEl.style.display = isCustom ? "block" : "none";
+    }
+  }
+  if (slotModeEl) {
+    slotModeEl.onchange = syncSlotModeUI;
+  }
   function getProfile() {
     const p = {};
     textIds.forEach((id) => {
       const el = document.getElementById(id);
-      if (el) p[id] = el.value.trim();
+      if (el) p[id] = (el.value || "").trim();
     });
     boolIds.forEach((id) => {
       const el = document.getElementById(id);
@@ -26,15 +39,22 @@
     return p;
   }
   chrome.storage.local.get("profile", ({ profile }) => {
-    if (!profile) return;
+    if (!profile) {
+      syncSlotModeUI();
+      return;
+    }
     textIds.forEach((id) => {
       const el = document.getElementById(id);
       if (el && profile[id] !== void 0) el.value = profile[id];
     });
+    if (slotModeEl && !profile.slotMode) {
+      slotModeEl.value = profile.slotDate ? "custom" : "first";
+    }
     boolIds.forEach((id) => {
       const el = document.getElementById(id);
       if (el && profile[id] !== void 0) el.checked = Boolean(profile[id]);
     });
+    syncSlotModeUI();
   });
   document.getElementById("save").onclick = async () => {
     const profile = getProfile();
