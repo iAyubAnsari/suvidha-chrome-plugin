@@ -36,7 +36,6 @@ import Tesseract from "tesseract.js";
 
   async function extractLogoText() {
     const img = document.getElementById("captcha");
-    console.log({ img });
     if (!img) {
       notice("Logo image element not found.", true);
       return null;
@@ -46,23 +45,53 @@ import Tesseract from "tesseract.js";
 
     let imageSource = img;
     try {
-      // IMPROVEMENT 1: Scale up the image canvas (3x) to give Tesseract's 
-      // LSTM engine sharp pixel definitions, heavily reducing 5/S and 0/O confusion.
       const canvas = document.createElement("canvas");
-      const scale = 3;
+      const scale = 4; // Upscale 4x for ultra-sharp letter boundaries
       canvas.width = (img.naturalWidth || img.width || 200) * scale;
       canvas.height = (img.naturalHeight || img.height || 50) * scale;
       const ctx = canvas.getContext("2d");
+
       if (ctx) {
-        ctx.imageSmoothingEnabled = false; // Keeps edges sharp instead of blurry
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // --- IMPROVED CLEANUP: Target and remove only the faint horizontal lines ---
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+
+          // If a pixel is grayish (the background security lines), turn it white
+          // Dark black pixels (the actual letters) remain untouched
+          if (Math.abs(r - g) < 15 && Math.abs(g - b) < 15 && r > 80 && r < 200) {
+            data[i] = 255;
+            data[i + 1] = 255;
+            data[i + 2] = 255;
+          } else if (r + g + b > 450) {
+            // Background cleanup
+            data[i] = 255;
+            data[i + 1] = 255;
+            data[i + 2] = 255;
+          } else {
+            // Force letters to solid black
+            data[i] = 0;
+            data[i + 1] = 0;
+            data[i + 2] = 0;
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
         imageSource = canvas.toDataURL("image/png");
       }
     } catch (e) {
+      console.error("Canvas processing error:", e);
       imageSource = img.src || img;
     }
 
-    // Force inject the core library directly into the page context window if missing
     if (typeof Tesseract === "undefined") {
       notice("Injecting OCR engine...", false);
       const script = document.createElement("script");
@@ -84,10 +113,8 @@ import Tesseract from "tesseract.js";
           langPath: chrome.runtime.getURL("tessdata/"),
           cacheMethod: 'none',
           gzip: false,
-
-          // IMPROVEMENT 2: Enforce strict character boundary whitelist.
-          // This forces Tesseract to only output capital letters and numbers.
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+          tessedit_pageseg_mode: 7, // Single text line
 
           logger: (m) => {
             if (m.status === "recognizing text" && m.progress !== undefined) {
@@ -97,15 +124,22 @@ import Tesseract from "tesseract.js";
         }
       );
 
-      // IMPROVEMENT 3: Safety fallback regex to strip out any stray non-alphanumeric marks
-      const cleaned = (text || "").replace(/[^A-Z0-9]/g, "").trim();
+      // Clean, filter, and convert to uppercase
+      let cleaned = (text || "").replace(/[^a-zA-Z0-9]/g, "").trim().toUpperCase();
 
-      console.log("[OCR Result] Extracted text (Whitelisted):", cleaned);
+      // --- LENGTH & INTEGRITY GUARD ---
+      // If Tesseract returns fewer than 6 characters due to merging, 
+      // alert the user or log it so you know a misread occurred.
+      if (cleaned.length !== 6) {
+        console.warn(`[OCR Warning] Expected 6 characters, but got ${cleaned.length}: "${cleaned}"`);
+      }
+
+      console.log("[OCR Result] Final Cleaned Text:", cleaned);
       notice(`OCR Extracted: ${cleaned}`, false);
       return cleaned;
 
     } catch (err) {
-      console.error("Tesseract OCR single-thread injection failed:", err);
+      console.error("Tesseract OCR error:", err);
       notice("Failed to extract text from logo.", true);
       return null;
     }
@@ -456,39 +490,56 @@ import Tesseract from "tesseract.js";
       calculate.addEventListener?.("click", async () => {
         const text = await extractLogoText();
         const logoInput = findInput(["captchavalue", "captchaValue", "captcha"]);
+
         if (logoInput) {
           logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
           logoInput.focus();
 
-          console.log({ text });
-          const extractedText = text;
+          // Ensure entire extracted text is uppercase
+          const extractedText = (text || "").toUpperCase();
+
           if (extractedText) {
-            // Set the full text immediately in one go
-            logoInput.value = extractedText;
+            logoInput.value = ""; // Clear first
+            let index = 0;
 
-            // Trigger standard events so the form's framework registers it
-            logoInput.dispatchEvent(new Event("input", { bubbles: true }));
-            logoInput.dispatchEvent(new Event("change", { bubbles: true }));
+            notice(`Typing code: ${extractedText}`, false);
 
-            notice(`Typed full code: ${extractedText}`, false);
+            const typingInterval = setInterval(() => {
+              if (index < extractedText.length) {
+                const char = extractedText[index];
+                logoInput.value += char;
 
-            // --- PROCEED TO PAYMENT ---
-            setTimeout(() => {
-              const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find(el => {
-                const txt = norm(el.innerText || el.value || el.textContent || "");
-                return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
-              });
+                // Dispatch full keyboard and input events so portal scripts register the keystroke
+                logoInput.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
+                logoInput.dispatchEvent(new KeyboardEvent("keypress", { key: char, bubbles: true }));
+                logoInput.dispatchEvent(new Event("input", { bubbles: true }));
+                logoInput.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
+                logoInput.dispatchEvent(new Event("change", { bubbles: true }));
 
-              if (paymentBtn) {
-                notice("Clicking Proceed to payment...", false);
-                const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-                paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-                paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-                paymentBtn.click();
+                index++;
               } else {
-                notice("Proceed to payment button not found.", true);
+                clearInterval(typingInterval);
+                notice("Typing complete! Proceeding...", false);
+
+                // --- PROCEED TO PAYMENT CLICKER ---
+                setTimeout(() => {
+                  const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find(el => {
+                    const txt = norm(el.innerText || el.value || el.textContent || "");
+                    return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
+                  });
+
+                  if (paymentBtn) {
+                    notice("Clicking Proceed to payment...", false);
+                    const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+                    paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+                    paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+                    paymentBtn.click();
+                  } else {
+                    notice("Proceed to payment button not found.", true);
+                  }
+                }, 200); // Small buffer after typing finishes
               }
-            }, 350);
+            }, 150); // 150ms delay per character to mimic natural typing
           }
         }
       });

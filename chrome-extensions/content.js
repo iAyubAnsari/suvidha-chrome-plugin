@@ -1397,10 +1397,31 @@
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.imageSmoothingEnabled = false;
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const brightness = r * 0.299 + g * 0.587 + b * 0.114;
+            if (brightness > 150) {
+              data[i] = 255;
+              data[i + 1] = 255;
+              data[i + 2] = 255;
+            } else {
+              data[i] = 0;
+              data[i + 1] = 0;
+              data[i + 2] = 0;
+            }
+          }
+          ctx.putImageData(imgData, 0, 0);
           imageSource = canvas.toDataURL("image/png");
         }
       } catch (e) {
+        console.error("Canvas processing error:", e);
         imageSource = img.src || img;
       }
       if (typeof import_tesseract.default === "undefined") {
@@ -1422,9 +1443,10 @@
             langPath: chrome.runtime.getURL("tessdata/"),
             cacheMethod: "none",
             gzip: false,
-            // IMPROVEMENT 2: Enforce strict character boundary whitelist.
-            // This forces Tesseract to only output capital letters and numbers.
-            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+            // Allow both upper and lowercase letters + numbers during scan
+            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+            tessedit_pageseg_mode: 7,
+            // Single text line mode to prevent dropping characters
             logger: (m) => {
               if (m.status === "recognizing text" && m.progress !== void 0) {
                 notice(`Extracting text: ${Math.round(m.progress * 100)}%`, false);
@@ -1432,8 +1454,8 @@
             }
           }
         );
-        const cleaned = (text || "").replace(/[^A-Z0-9]/g, "").trim();
-        console.log("[OCR Result] Extracted text (Whitelisted):", cleaned);
+        const cleaned = (text || "").replace(/[^a-zA-Z0-9]/g, "").trim().toUpperCase();
+        console.log("[OCR Result] Extracted & Capitalized text:", cleaned);
         notice(`OCR Extracted: ${cleaned}`, false);
         return cleaned;
       } catch (err) {
@@ -1715,28 +1737,41 @@
           if (logoInput) {
             logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
             logoInput.focus();
-            console.log({ text });
-            const extractedText = text;
+            const extractedText = (text || "").toUpperCase();
             if (extractedText) {
-              logoInput.value = extractedText;
-              logoInput.dispatchEvent(new Event("input", { bubbles: true }));
-              logoInput.dispatchEvent(new Event("change", { bubbles: true }));
-              notice(`Typed full code: ${extractedText}`, false);
-              setTimeout(() => {
-                const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find((el) => {
-                  const txt = norm(el.innerText || el.value || el.textContent || "");
-                  return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
-                });
-                if (paymentBtn) {
-                  notice("Clicking Proceed to payment...", false);
-                  const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-                  paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-                  paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-                  paymentBtn.click();
+              logoInput.value = "";
+              let index = 0;
+              notice(`Typing code: ${extractedText}`, false);
+              const typingInterval = setInterval(() => {
+                if (index < extractedText.length) {
+                  const char = extractedText[index];
+                  logoInput.value += char;
+                  logoInput.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
+                  logoInput.dispatchEvent(new KeyboardEvent("keypress", { key: char, bubbles: true }));
+                  logoInput.dispatchEvent(new Event("input", { bubbles: true }));
+                  logoInput.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
+                  logoInput.dispatchEvent(new Event("change", { bubbles: true }));
+                  index++;
                 } else {
-                  notice("Proceed to payment button not found.", true);
+                  clearInterval(typingInterval);
+                  notice("Typing complete! Proceeding...", false);
+                  setTimeout(() => {
+                    const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find((el) => {
+                      const txt = norm(el.innerText || el.value || el.textContent || "");
+                      return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
+                    });
+                    if (paymentBtn) {
+                      notice("Clicking Proceed to payment...", false);
+                      const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+                      paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+                      paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+                      paymentBtn.click();
+                    } else {
+                      notice("Proceed to payment button not found.", true);
+                    }
+                  }, 200);
                 }
-              }, 350);
+              }, 150);
             }
           }
         });
