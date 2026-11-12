@@ -48,7 +48,6 @@ test('1. Manifest Validation', async (t) => {
 test('2. Popup HTML and DOM ID Alignment', () => {
   const popupHtml = fs.readFileSync(path.join(PROJECT_DIR, 'popup.html'), 'utf8');
   const expectedIds = [
-    'goodsType', 'goodsCategory', 'slotMode', 'slotDateWrapper', 'slotDate', 'autoSlot',
     'goods', 'udin', 'lcNumber', 'lcDate', 'importer', 'vehicles',
     'autoCalc', 'autoRun', 'save', 'fill', 'status'
   ];
@@ -61,22 +60,20 @@ test('2. Popup HTML and DOM ID Alignment', () => {
 test('3. Popup Logic (popup.js)', async (t) => {
   const popupJsCode = fs.readFileSync(path.join(PROJECT_DIR, 'popup.js'), 'utf8');
 
-  function createPopupContext(initialStorage = {}, tabUrl = 'https://suvidha-mp.wb.gov.in/exporter-oth/avilable-slot') {
+  function createPopupContext(initialStorage = {}, tabUrl = 'https://suvidha-mp.wb.gov.in/exporter-oth/slot-booking') {
     const elements = {};
     const ids = [
-      'goodsType', 'goodsCategory', 'slotMode', 'slotDateWrapper', 'slotDate', 'autoSlot',
       'goods', 'udin', 'lcNumber', 'lcDate', 'importer', 'vehicles',
       'autoCalc', 'autoRun', 'save', 'fill', 'status'
     ];
     ids.forEach(id => {
       elements[id] = {
         id,
-        value: id === 'slotMode' ? 'first' : '',
+        value: '',
         checked: false,
         textContent: '',
         onclick: null,
-        onchange: null,
-        style: { display: id === 'slotDateWrapper' ? 'none' : 'block' }
+        onchange: null
       };
     });
 
@@ -142,10 +139,6 @@ test('3. Popup Logic (popup.js)', async (t) => {
   await t.test('Initializes form from chrome.storage.local', () => {
     const { ctx, elements } = createPopupContext({
       profile: {
-        goodsType: 'NON-PERISHABLE',
-        goodsCategory: 'OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)',
-        slotDate: '2026-11-08',
-        autoSlot: true,
         goods: 'Rice',
         udin: 'UDIN123456789012345678',
         lcNumber: 'LC999',
@@ -159,12 +152,6 @@ test('3. Popup Logic (popup.js)', async (t) => {
 
     vm.runInContext(popupJsCode, ctx);
 
-    assert.equal(elements.goodsType.value, 'NON-PERISHABLE');
-    assert.equal(elements.goodsCategory.value, 'OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)');
-    assert.equal(elements.slotMode.value, 'custom');
-    assert.equal(elements.slotDateWrapper.style.display, 'block');
-    assert.equal(elements.slotDate.value, '2026-11-08');
-    assert.equal(elements.autoSlot.checked, true);
     assert.equal(elements.goods.value, 'Rice');
     assert.equal(elements.udin.value, 'UDIN123456789012345678');
     assert.equal(elements.lcNumber.value, 'LC999');
@@ -179,11 +166,6 @@ test('3. Popup Logic (popup.js)', async (t) => {
     const { ctx, elements, storage } = createPopupContext();
     vm.runInContext(popupJsCode, ctx);
 
-    elements.goodsType.value = 'NON-PERISHABLE';
-    elements.goodsCategory.value = 'STONE CHIPS (UP TO 12 WHEELER)';
-    elements.slotMode.value = 'custom';
-    elements.slotDate.value = '2026-11-08';
-    elements.autoSlot.checked = true;
     elements.goods.value = 'Basmati Rice';
     elements.udin.value = 'UDIN999';
     elements.lcNumber.value = 'LC888';
@@ -196,17 +178,12 @@ test('3. Popup Logic (popup.js)', async (t) => {
     await elements.save.onclick();
 
     assert.deepEqual(JSON.parse(JSON.stringify(storage.profile)), {
-      goodsType: 'NON-PERISHABLE',
-      goodsCategory: 'STONE CHIPS (UP TO 12 WHEELER)',
-      slotMode: 'custom',
-      slotDate: '2026-11-08',
       goods: 'Basmati Rice',
       udin: 'UDIN999',
       lcNumber: 'LC888',
       lcDate: '2026-11-05',
       importer: 'Global Traders',
       vehicles: '2',
-      autoSlot: true,
       autoCalc: true,
       autoRun: true
     });
@@ -248,28 +225,44 @@ test('4. Content Script (content.js)', async (t) => {
       this.labels = [];
       this.children = [];
       this.options = [];
-      this.dispatchedEvents = [];
-      this.focused = false;
       this.clicked = false;
+      this.focused = false;
       this.style = {};
+      this.checked = attrs.checked || false;
+      this.disabled = attrs.disabled || false;
+      this.eventListeners = {};
     }
+
+    get value() {
+      return this._value;
+    }
+    set value(v) {
+      this._value = String(v);
+    }
+
     get innerText() {
-      const childText = this.children.map(c => c.innerText).join(' ');
-      return ((this._innerText || '') + ' ' + childText).trim();
+      return this._innerText;
     }
     set innerText(v) {
-      this._innerText = v;
+      this._innerText = String(v);
     }
+
     get textContent() {
-      return this.innerText;
+      return this._innerText;
     }
     set textContent(v) {
-      this._innerText = v;
+      this._innerText = String(v);
     }
-    get value() { return this._value; }
-    set value(v) { this._value = v; }
-    getAttribute(name) { return this.attributes[name] || null; }
-    setAttribute(name, val) { this.attributes[name] = val; }
+
+    getAttribute(name) {
+      return this.attributes[name] || null;
+    }
+
+    setAttribute(name, val) {
+      this.attributes[name] = String(val);
+      if (name === 'class') this.className = String(val);
+    }
+
     appendChild(child) {
       child.parentElement = this;
       this.children.push(child);
@@ -278,75 +271,72 @@ test('4. Content Script (content.js)', async (t) => {
       }
       return child;
     }
-    querySelector(sel) {
-      if (sel.includes('+') || sel.includes('button') || sel.includes('span')) {
-        return this.children.find(c => (c.innerText || '').includes('+')) || null;
-      }
-      return null;
+
+    addEventListener(event, fn) {
+      if (!this.eventListeners[event]) this.eventListeners[event] = [];
+      this.eventListeners[event].push(fn);
     }
-    closest(sel) {
-      let cur = this;
-      while (cur) {
-        if (sel.includes('a') && cur.tagName === 'A') return cur;
-        if (sel.includes('button') && cur.tagName === 'BUTTON') return cur;
-        cur = cur.parentElement;
-      }
-      return null;
-    }
-    dispatchEvent(event) {
-      this.dispatchedEvents.push(event);
+
+    dispatchEvent(ev) {
+      const fns = this.eventListeners[ev.type] || [];
+      fns.forEach(fn => fn(ev));
       return true;
     }
-    focus() { this.focused = true; }
-    click() { this.clicked = true; }
+
+    click() {
+      this.clicked = true;
+      this.dispatchEvent({ type: 'click' });
+    }
+
+    focus() {
+      this.focused = true;
+    }
+
+    scrollIntoView() { }
+
+    closest(selector) {
+      let curr = this.parentElement;
+      while (curr) {
+        if (selector === 'form' && curr.tagName === 'FORM') return curr;
+        if (selector.includes('label') && curr.tagName === 'LABEL') return curr;
+        curr = curr.parentElement;
+      }
+      return null;
+    }
   }
 
   class HTMLInputElement extends HTMLElement { }
   class HTMLTextAreaElement extends HTMLElement { }
   class HTMLSelectElement extends HTMLElement { }
   class HTMLOptionElement extends HTMLElement {
-    constructor(text, val) {
-      super('option');
+    constructor(text, value) {
+      super('OPTION');
       this.text = text;
-      this.value = val;
-      this.innerText = text;
-      this.textContent = text;
+      this.value = value;
+      this._innerText = text;
     }
   }
 
   function createDocumentMock() {
-    const body = new HTMLElement('body');
-    const allElements = [body];
-
+    const allElements = [];
     const doc = {
-      body,
       createElement: (tag) => {
-        let el;
-        const lower = tag.toLowerCase();
-        if (lower === 'input') el = new HTMLInputElement('input');
-        else if (lower === 'textarea') el = new HTMLTextAreaElement('textarea');
-        else if (lower === 'select') el = new HTMLSelectElement('select');
-        else if (lower === 'option') el = new HTMLOptionElement('', '');
-        else el = new HTMLElement(tag);
+        const el = tag.toLowerCase() === 'select'
+          ? new HTMLSelectElement('SELECT')
+          : (tag.toLowerCase() === 'textarea' ? new HTMLTextAreaElement('TEXTAREA') : new HTMLInputElement(tag));
         allElements.push(el);
         return el;
       },
       getElementById: (id) => allElements.find(e => e.id === id) || null,
+      body: new HTMLElement('BODY'),
       querySelector: (sel) => {
-        if (sel === 'select') return allElements.find(e => e instanceof HTMLSelectElement) || null;
-        return null;
+        const results = doc.querySelectorAll(sel);
+        return results[0] || null;
       },
       querySelectorAll: (sel) => {
-        if (sel.includes('.slot_available')) {
-          return allElements.filter(e => e.getAttribute('class')?.includes('slot_available'));
-        }
-        if (sel === 'select') {
-          return allElements.filter(e => e instanceof HTMLSelectElement);
-        }
-        if (sel === 'input:not([type=hidden]), textarea') {
+        if (sel.includes('input:not([type=hidden]), textarea')) {
           return allElements.filter(e =>
-            (e instanceof HTMLInputElement && e.type !== 'hidden') ||
-            (e instanceof HTMLTextAreaElement)
+            (e instanceof HTMLInputElement || e instanceof HTMLTextAreaElement) && e.type !== 'hidden'
           );
         }
         if (sel.includes('button, input[type=button]')) {
@@ -359,8 +349,8 @@ test('4. Content Script (content.js)', async (t) => {
         if (sel.includes('input[type=checkbox]') || sel.includes("input[type='checkbox']")) {
           return allElements.filter(e => e instanceof HTMLInputElement && e.type === 'checkbox');
         }
-        if (sel.includes('td, div')) {
-          return allElements.filter(e => e.tagName === 'TD' || e.tagName === 'DIV');
+        if (sel.includes('.side_nav a') || sel.includes('#activeNEFT')) {
+          return allElements.filter(e => e.id === 'activeNEFT' || (e.innerText && e.innerText.toLowerCase().includes('neft')));
         }
         return [];
       }
@@ -368,105 +358,7 @@ test('4. Content Script (content.js)', async (t) => {
     return { doc, allElements };
   }
 
-  await t.test('Page 1: Slot Selection & Calendar Slot Click (/exporter-oth/avilable-slot)', async () => {
-    const { doc } = createDocumentMock();
-    const windowMock = {
-      location: { href: 'https://suvidha-mp.wb.gov.in/exporter-oth/avilable-slot' },
-      __suvidhaAssistantLoaded: undefined
-    };
-
-    let messageHandler = null;
-    const chromeMock = {
-      runtime: {
-        onMessage: {
-          addListener: (fn) => { messageHandler = fn; }
-        }
-      },
-      storage: {
-        local: {
-          get: (key, cb) => cb({})
-        }
-      }
-    };
-
-    class MockMutationObserver {
-      observe() { }
-      disconnect() { }
-    }
-
-    // 1. Type of Goods select
-    const divType = doc.createElement('div');
-    divType.innerText = 'Type of Goods *';
-    const selectType = doc.createElement('select');
-    selectType.name = 'type_of_goods';
-    const optType1 = new HTMLOptionElement('-SELECT-', '');
-    const optType2 = new HTMLOptionElement('NON-PERISHABLE', '1');
-    const optType3 = new HTMLOptionElement('PERISHABLE AND PRIORITY GOODS', '2');
-    selectType.appendChild(optType1);
-    selectType.appendChild(optType2);
-    selectType.appendChild(optType3);
-    divType.appendChild(selectType);
-    doc.body.appendChild(divType);
-
-    // 2. Goods select
-    const divGoods = doc.createElement('div');
-    divGoods.innerText = 'Goods *';
-    const selectGoods = doc.createElement('select');
-    selectGoods.name = 'goods_id';
-    const optG1 = new HTMLOptionElement('SELECT', '');
-    const optG2 = new HTMLOptionElement('OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)', '101');
-    selectGoods.appendChild(optG1);
-    selectGoods.appendChild(optG2);
-    divGoods.appendChild(selectGoods);
-    doc.body.appendChild(divGoods);
-
-    // 3. Calendar cell for Nov 8 with .slot_available badge matching portal code
-    const cellDate8 = doc.createElement('td');
-    cellDate8.innerText = '8';
-    const badgePlus = doc.createElement('span');
-    badgePlus.className = 'slot_available';
-    badgePlus.setAttribute('class', 'slot_available');
-    badgePlus.setAttribute('data-booking_date', '2026-11-08');
-    badgePlus.innerText = '+ 27';
-    cellDate8.appendChild(badgePlus);
-    doc.body.appendChild(cellDate8);
-
-    const ctx = vm.createContext({
-      window: windowMock,
-      document: doc,
-      chrome: chromeMock,
-      MutationObserver: MockMutationObserver,
-      Event: globalThis.Event,
-      setTimeout: globalThis.setTimeout,
-      clearTimeout: globalThis.clearTimeout,
-      HTMLInputElement,
-      HTMLTextAreaElement,
-      HTMLSelectElement
-    });
-
-    vm.runInContext(contentJsCode, ctx);
-
-    // Trigger slot selection via message
-    let responseResult = null;
-    messageHandler({
-      type: 'SUVIDHA_TRIGGER',
-      profile: {
-        goodsType: 'NON-PERISHABLE',
-        goodsCategory: 'OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)',
-        slotDate: '2026-11-08',
-        autoSlot: true
-      }
-    }, {}, (res) => { responseResult = res; });
-
-    // Allow async actions and scheduled clicks to complete
-    await new Promise(r => setTimeout(r, 450));
-
-    assert.equal(selectType.value, '1', 'Selected NON-PERISHABLE');
-    assert.equal(selectGoods.value, '101', 'Selected UP TO 06 WHEELERS');
-    assert.equal(badgePlus.clicked, true, 'Clicked + 27 badge on 8th Nov');
-  });
-
-  await t.test('Page 2: Booking Form Autofill & Calculate (/exporter-oth/slot-booking)', async () => {
+  await t.test('Page 1: Booking Form Autofill & Calculate (/exporter-oth/slot-booking)', async () => {
     const { doc } = createDocumentMock();
     const windowMock = {
       location: { href: 'https://suvidha-mp.wb.gov.in/exporter-oth/slot-booking' },
@@ -478,7 +370,8 @@ test('4. Content Script (content.js)', async (t) => {
       runtime: {
         onMessage: {
           addListener: (fn) => { messageHandler = fn; }
-        }
+        },
+        sendMessage: (msg, cb) => cb?.({ text: 'XYZ123' })
       },
       storage: {
         local: {
@@ -492,13 +385,12 @@ test('4. Content Script (content.js)', async (t) => {
       disconnect() { }
     }
 
-    // Build form from Screenshot 4
     const inputGoods = doc.createElement('input');
-    inputGoods.placeholder = 'Enter the name of the goods you want to export';
+    inputGoods.placeholder = 'Goods you want to export';
     doc.body.appendChild(inputGoods);
 
     const inputUdin = doc.createElement('input');
-    inputUdin.placeholder = 'ENTER 25 ALPHANUMERIC UDIN OF LC';
+    inputUdin.placeholder = '25 alphanumeric UDIN';
     doc.body.appendChild(inputUdin);
 
     const inputLcNumber = doc.createElement('input');
@@ -568,7 +460,7 @@ test('4. Content Script (content.js)', async (t) => {
     assert.equal(logoInput.focused, true, 'Logo input was focused');
   });
 
-  await t.test('Page 3: GRIPS Payment Verification & Next (/GRIPS/v2/#/g2-payment)', async () => {
+  await t.test('Page 2: GRIPS Payment Verification & Next (/GRIPS/v2/#/g2-payment)', async () => {
     const { doc } = createDocumentMock();
     const windowMock = {
       location: { href: 'https://wbifms.gov.in/GRIPS/v2/#/g2-payment/external?uuid=123' },
@@ -627,5 +519,50 @@ test('4. Content Script (content.js)', async (t) => {
 
     assert.equal(checkbox.checked, true, 'Verified and checked checkbox was ticked');
     assert.equal(nextBtn.clicked, true, 'Next button was clicked');
+  });
+
+  await t.test('Page 3: SBI ePay NEFT Selection (epay.sbi.bank.in)', async () => {
+    const { doc } = createDocumentMock();
+    const windowMock = {
+      location: { href: 'https://epay.sbi.bank.in/epay/AggregatorHostedListener' },
+      __suvidhaAssistantLoaded: undefined
+    };
+
+    const chromeMock = {
+      runtime: {
+        onMessage: { addListener: () => { } }
+      },
+      storage: {
+        local: { get: (key, cb) => cb({}) }
+      }
+    };
+
+    class MockMutationObserver {
+      observe() { }
+      disconnect() { }
+    }
+
+    const neftTab = doc.createElement('a');
+    neftTab.id = 'activeNEFT';
+    neftTab.innerText = 'NEFT/RTGS';
+    doc.body.appendChild(neftTab);
+
+    const ctx = vm.createContext({
+      window: windowMock,
+      document: doc,
+      chrome: chromeMock,
+      MutationObserver: MockMutationObserver,
+      Event: globalThis.Event,
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+      HTMLInputElement,
+      HTMLTextAreaElement,
+      HTMLSelectElement
+    });
+
+    vm.runInContext(contentJsCode, ctx);
+
+    await new Promise(r => setTimeout(r, 1200));
+    assert.equal(neftTab.clicked, true, 'NEFT tab was clicked');
   });
 });

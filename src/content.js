@@ -1,4 +1,3 @@
-
 (() => {
   if (window.__suvidhaAssistantLoaded) return;
   window.__suvidhaAssistantLoaded = true;
@@ -33,61 +32,7 @@
     box.textContent = message;
   }
 
-  async function extractLogoText() {
-    const img = document.getElementById("captcha");
-    if (!img) {
-      notice("Logo image element not found.", true);
-      return null;
-    }
-
-    notice("Solving captcha via Vision API...", false);
-
-    try {
-      // Draw image to canvas to get clean base64 data
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth || img.width || 200;
-      canvas.height = img.naturalHeight || img.height || 50;
-      const ctx = canvas.getContext("2d");
-
-      if (ctx) {
-        ctx.drawImage(img, 0, 0);
-      }
-
-      const base64Image = canvas.toDataURL("image/png");
-
-      // Send base64 image to background script for API processing
-      const response = await chrome.runtime.sendMessage({
-        type: "SOLVE_CAPTCHA_API",
-        imageBase64: base64Image
-      });
-
-      // FIXED LINE: changed imageBase64 to base64Image
-      console.log({ base64Image })
-
-      if (response?.error) {
-        throw new Error(response.error);
-      }
-
-      let cleaned = (response?.text || "").replace(/[^a-zA-Z0-9]/g, "").trim().toUpperCase();
-
-      if (cleaned.length > 6) {
-        cleaned = cleaned.substring(0, 6);
-      }
-
-      console.log("[API OCR Result]:", cleaned);
-      notice(`API Solved: ${cleaned}`, false);
-      return cleaned;
-
-    } catch (err) {
-      console.error("API Vision error:", err);
-      notice("Failed to solve captcha via API.", true);
-      return null;
-    }
-  }
-
-
-
-  // Set input value compatible with React/Vue and trigger change/input events
+  // Set input value compatible with frameworks (React, Vue, Angular) and fire input/change events
   function setValue(el, value) {
     if (!el || value === undefined || value === null || value === "") return false;
     const proto = el instanceof HTMLTextAreaElement
@@ -103,13 +48,13 @@
     return true;
   }
 
-  // Search input/textarea by context terms (direct attributes first to prevent parent bleeding)
+  // Search input/textarea by matching label, name, id, placeholder, or parent container text
   function findInput(terms) {
     const inputs = [...document.querySelectorAll("input:not([type=hidden]), textarea")].filter(
       el => (el.offsetWidth || el.offsetHeight)
     );
 
-    // 1st pass: strict check on direct attributes (id, name, placeholder, aria-label, labels)
+    // 1st pass: strict check on direct element attributes
     const directMatch = inputs.find(el => {
       const directContext = norm([
         el.id,
@@ -122,7 +67,7 @@
     });
     if (directMatch) return directMatch;
 
-    // 2nd pass: check closest small container (.form-group, td, label) excluding broad containers
+    // 2nd pass: check closest parent container (.form-group, td, label)
     return inputs.find(el => {
       const parent = (el.closest && el.closest(".form-group, .form-row, td, tr, label")) || el.parentElement;
       if (!parent || parent === document.body || parent.tagName === "FORM") return false;
@@ -131,9 +76,9 @@
     });
   }
 
-  // Wait for an element to appear in DOM
+  // Poll for an element to appear in the DOM
   function waitFor(predicate, timeoutMs = 8000, intervalMs = 200) {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const start = Date.now();
       const check = () => {
         const res = predicate();
@@ -145,236 +90,168 @@
     });
   }
 
-  // Extract day number (1-31) from any date format (YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, or raw number)
-  function extractDay(dateStr) {
-    if (!dateStr) return null;
-    const str = String(dateStr).trim();
-    // YYYY-MM-DD
-    const ymd = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (ymd) return parseInt(ymd[3], 10);
-    // DD/MM/YYYY or MM/DD/YYYY
-    const slash = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (slash) {
-      const p1 = parseInt(slash[1], 10);
-      const p2 = parseInt(slash[2], 10);
-      if (p1 > 12) return p1; // DD/MM/YYYY
-      if (p2 > 12) return p2; // MM/DD/YYYY
-      return p1; // Default DD/MM/YYYY
+  // Helper to click or select option in native select or custom Angular Material mat-select
+  async function selectDropdownOption(containerOrSelect, optionText) {
+    if (!containerOrSelect) return false;
+    const normTarget = norm(optionText);
+
+    // Native HTMLSelectElement
+    if (containerOrSelect.tagName === "SELECT") {
+      const opt = [...containerOrSelect.options].find(o => norm(o.text).includes(normTarget));
+      if (opt) {
+        containerOrSelect.value = opt.value;
+        setValue(containerOrSelect, opt.value);
+        return true;
+      }
     }
-    const num = parseInt(str, 10);
-    if (!isNaN(num) && num >= 1 && num <= 31) return num;
-    return null;
+
+    // Angular Material mat-select
+    const trigger = (
+      containerOrSelect.querySelector?.(".mat-select-trigger, [cdk-overlay-origin], mat-select") ||
+      (containerOrSelect.classList?.contains("mat-select-trigger") ? containerOrSelect : null) ||
+      containerOrSelect
+    );
+
+    const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+    trigger.focus?.();
+    trigger.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+    trigger.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+    trigger.click();
+    trigger.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
+
+    const option = await waitFor(() => {
+      const options = [...document.querySelectorAll("mat-option, .mat-option, [role='option']")].filter(
+        el => (el.offsetWidth || el.offsetHeight)
+      );
+      return options.find(el => {
+        const txt = norm(el.innerText || el.textContent || "");
+        return txt === normTarget || txt.includes(normTarget);
+      }) || null;
+    }, 4500, 150);
+
+    if (option) {
+      await new Promise(r => setTimeout(r, 150));
+      option.scrollIntoView?.({ block: "nearest" });
+      option.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+      option.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+      option.click();
+      option.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
+      await new Promise(r => setTimeout(r, 300));
+      return true;
+    }
+
+    return false;
   }
 
-  // Find .slot_available element on the Suvidha calendar
-  function findAvailableSlot(targetDay, targetDateIso = null) {
-    // Check .slot_available elements directly (the official portal class)
-    const slots = [...document.querySelectorAll(".slot_available, .slot_available_reschedule, [data-booking_date]")];
+  // Extract Captcha image from DOM, convert to base64 and request OCR decode
+  async function extractCaptchaText() {
+    const img = (
+      document.getElementById("captcha") ||
+      document.querySelector("img[src*='captcha'], img[id*='captcha'], img[src*='logo'], #logo")
+    );
 
-    // Mode 1: First available '+' slot (when no custom target date is requested)
-    if (targetDay === null && !targetDateIso) {
-      if (slots.length > 0) return slots[0];
-      const cells = [...document.querySelectorAll("td, div[class*='cell'], div[class*='day']")];
-      for (const cell of cells) {
-        const action = cell.querySelector("a, button, [class*='badge'], [class*='slot'], i.fa, i[class*='plus']");
-        if (action) return (action.closest && action.closest("a, button, [onclick]")) || action;
-      }
+    if (!img) {
+      notice("Captcha image element not found.", true);
       return null;
     }
 
-    // Mode 2: Specific date requested by user (do not silently fall back to slots[0])
-    if (slots.length > 0) {
-      const match = slots.find(s => {
-        const bd = (s.getAttribute("data-booking_date") || s.dataset?.booking_date || s.dataset?.bookingDate || "").trim();
-        if (targetDateIso && bd) {
-          return bd === targetDateIso;
-        }
-        const ymd = bd.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-        if (ymd && parseInt(ymd[3], 10) === targetDay) return true;
-        const cell = (s.closest && s.closest("td, div[class*='cell'], div[class*='day']")) || s.parentElement;
-        if (cell) {
-          const txt = (cell.innerText || cell.textContent || "").trim();
-          const tokens = txt.split(/[\s\n\r\t]+/);
-          if (tokens.some(t => t.replace(/\D/g, "") === String(targetDay))) return true;
-        }
-        return false;
-      });
-      if (match) return match;
-    }
-
-    // Fallback: search calendar cells for the specific targetDay
-    const cells = [...document.querySelectorAll("td, div[class*='cell'], div[class*='day']")];
-    if (targetDay !== null) {
-      const targetCell = cells.find(cell => {
-        const txt = (cell.innerText || cell.textContent || "").trim();
-        const tokens = txt.split(/[\s\n\r\t]+/);
-        return tokens.some(t => t.replace(/\D/g, "") === String(targetDay));
-      });
-      if (targetCell) {
-        const action = targetCell.querySelector("a, button, [class*='badge'], [class*='slot'], i.fa, i[class*='plus']");
-        return (action && action.closest && action.closest("a, button, [onclick]")) || action || targetCell;
-      }
-    }
-
-    return null;
-  }
-
-  // Select and submit slot
-  // Select and submit slot securely bypassing browser CSP inline violations
-  function selectAndSubmitSlot(slotElement) {
-    if (!slotElement) return false;
+    notice("Solving captcha via OCR...", false);
 
     try {
-      slotElement.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth || img.width || 200;
+      canvas.height = img.naturalHeight || img.height || 50;
+      const ctx = canvas.getContext("2d");
 
-      // Read booking date attribute from portal element
-      const bookingDate = (
-        slotElement.getAttribute("data-booking_date") ||
-        slotElement.dataset?.booking_date ||
-        slotElement.dataset?.bookingDate ||
-        ""
-      ).trim();
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+      }
 
-      // Update .event-date input in portal form
-      const eventDateInputs = document.querySelectorAll(".event-date, input[name='event_date'], input[name='booking_date']");
-      eventDateInputs.forEach(input => {
-        if (bookingDate) input.value = bookingDate;
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
+      const base64Image = canvas.toDataURL("image/png");
+
+      const response = await chrome.runtime.sendMessage({
+        type: "SOLVE_CAPTCHA_API",
+        imageBase64: base64Image
       });
 
-      // Target the direct active element safely
-      const target = (slotElement.closest && slotElement.closest(".slot_available")) || slotElement;
-      const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-
-      // 1. Dispatch safe, full native event bubbling sequences
-      target.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-      target.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-
-      // 2. Safely call click handlers while bypassing inline 'javascript:' anchors via PointerEvent
-      try {
-        if (typeof PointerEvent !== "undefined") {
-          const clickEvent = new PointerEvent("click", {
-            bubbles: true,
-            cancelable: true,
-            view: window
-          });
-          target.dispatchEvent(clickEvent);
-        } else {
-          target.click?.();
-        }
-      } catch (clickErr) {
-        // Fallback catch buffer if synthetic dispatch encounters portal boundaries
-        if (typeof target.onclick === "function") {
-          target.onclick();
-        } else {
-          target.click?.();
-        }
+      if (response?.error) {
+        throw new Error(response.error);
       }
 
-      // Find the portal form and submit it directly to guarantee navigation
-      const form = (target.closest && target.closest("form")) || document.querySelector("form");
-      if (form) {
-        setTimeout(() => {
-          if (window.location.href.includes("avilable-slot")) {
-            try {
-              HTMLFormElement.prototype.submit.call(form);
-            } catch (e) {
-              form.submit();
-            }
-          }
-        }, 400);
+      let cleaned = (response?.text || "").replace(/[^a-zA-Z0-9]/g, "").trim().toUpperCase();
+      if (cleaned.length > 6) {
+        cleaned = cleaned.substring(0, 6);
       }
 
-      return true;
-    } catch (globalErr) {
-      console.error("[Suvidha Assistant] Safe slot selection error handled:", globalErr);
-      return false;
+      notice(`Captcha decoded: ${cleaned}`, false);
+      return cleaned;
+    } catch (err) {
+      console.error("[Suvidha Assistant] OCR error:", err);
+      notice(err.message || "Failed to solve captcha.", true);
+      return null;
     }
   }
 
-
-  // STEP 1, 2 & 3: Handle /exporter-oth/avilable-slot
-  async function handleAvailableSlots(profile) {
-    notice("Processing slot selection...");
-
-    // 1. Find & select 'Type of Goods' dropdown
-    const typeSelect = [...document.querySelectorAll("select")].find(sel => {
-      const context = norm([
-        sel.id, sel.name,
-        [...(sel.labels || [])].map(x => x.innerText).join(" "),
-        sel.parentElement?.innerText
-      ].join(" "));
-      return context.includes("type of goods") && (sel.offsetWidth || sel.offsetHeight);
-    }) || document.querySelector("select");
-
-    if (typeSelect && profile.goodsType) {
-      const targetOption = [...typeSelect.options].find(opt =>
-        norm(opt.text).includes(norm(profile.goodsType))
-      );
-      if (targetOption && typeSelect.value !== targetOption.value) {
-        typeSelect.value = targetOption.value;
-        setValue(typeSelect, targetOption.value);
-        notice(`Selected Type: ${targetOption.text}`);
-      }
+  // Solve Captcha, simulate keyboard typing, and click 'Proceed to payment'
+  async function solveAndTypeCaptcha() {
+    const logoInput = findInput(["captchavalue", "captchacode", "captcha", "logo", "logocode", "enter logo code"]);
+    if (!logoInput) {
+      notice("Captcha input field not found.", true);
+      return;
     }
 
-    // 2. Wait for second 'Goods' dropdown to populate via AJAX
-    const goodsSelect = await waitFor(() => {
-      const selects = [...document.querySelectorAll("select")].filter(
-        s => s !== typeSelect && (s.offsetWidth || s.offsetHeight)
-      );
-      return selects.find(s => s.options.length > 1) || null;
-    }, 6000);
+    logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    logoInput.focus();
 
-    if (goodsSelect && profile.goodsCategory) {
-      const targetCat = norm(profile.goodsCategory);
-      const catOption = [...goodsSelect.options].find(opt => {
-        const txt = norm(opt.text);
-        return txt.includes(targetCat) || targetCat.includes(txt);
-      });
-      if (catOption && goodsSelect.value !== catOption.value) {
-        goodsSelect.value = catOption.value;
-        setValue(goodsSelect, catOption.value);
-        notice(`Selected Category: ${catOption.text}`);
-      }
-    }
+    const text = await extractCaptchaText();
+    if (!text) return;
 
-    // 3. Wait for Calendar to render and click the target date's slot (or first available '+' slot)
-    if (profile.autoSlot !== false) {
-      const isFirstAvailable = profile.slotMode === "first" || (!profile.slotMode && !profile.slotDate);
-      const rawSlotDate = isFirstAvailable ? "" : (profile.slotDate || "").trim();
-      const targetDateIso = /^\d{4}-\d{2}-\d{2}$/.test(rawSlotDate) ? rawSlotDate : null;
-      const targetDay = isFirstAvailable ? null : extractDay(rawSlotDate);
+    logoInput.value = "";
+    let index = 0;
+    notice(`Typing code: ${text}`, false);
 
-      const slotElement = await waitFor(() => {
-        return findAvailableSlot(targetDay, targetDateIso);
-      }, 8000);
+    const typingInterval = setInterval(() => {
+      if (index < text.length) {
+        const char = text[index];
+        logoInput.value += char;
 
-      if (slotElement) {
-        const label = targetDateIso || (targetDay ? `day ${targetDay}` : "first available date");
-        notice(`Found available slot for ${label}. Opening booking form...`, false);
-        setTimeout(() => selectAndSubmitSlot(slotElement), 350);
-        return `Slot selected for ${label}. Opening booking form...`;
+        logoInput.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
+        logoInput.dispatchEvent(new KeyboardEvent("keypress", { key: char, bubbles: true }));
+        logoInput.dispatchEvent(new Event("input", { bubbles: true }));
+        logoInput.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
+        logoInput.dispatchEvent(new Event("change", { bubbles: true }));
+        index++;
       } else {
-        const msg = rawSlotDate
-          ? `Selected date (${rawSlotDate}) is not available. Please click a slot (+) manually.`
-          : "Calendar loaded. Please click the desired slot (+).";
-        notice(msg, Boolean(rawSlotDate));
-        return "Waiting for manual slot click.";
-      }
-    }
+        clearInterval(typingInterval);
+        notice("Captcha entered! Proceeding to payment...", false);
 
-    return "Slot selection complete.";
+        setTimeout(() => {
+          const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find(el => {
+            const txt = norm(el.innerText || el.value || el.textContent || "");
+            return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
+          });
+
+          if (paymentBtn) {
+            notice("Clicking Proceed to payment...", false);
+            const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+            paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+            paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+            paymentBtn.click();
+          } else {
+            notice("Proceed to payment button not found.", true);
+          }
+        }, 300);
+      }
+    }, 120);
   }
 
-  // STEP 4: Handle /exporter-oth/slot-booking form
+  // STEP 1: Handle /exporter-oth/slot-booking Form
   function handleBookingForm(p) {
     notice("Filling booking details...");
 
     const fields = [
       [
-        ["goods you want to export", "name of the goods", "name of goods", "goods name"],
+        ["goods you want to export", "name of the goods", "name of goods", "goods name", "goods"],
         p.goods,
         "Goods"
       ],
@@ -419,155 +296,41 @@
       }
     });
 
-    // Handle Calculate button and OCR trigger
+    const logoInput = findInput(["captchavalue", "captchacode", "captcha", "logo", "logocode", "enter logo code"]);
+    if (logoInput) {
+      logoInput.focus();
+    }
+
     const calculate = [...document.querySelectorAll("button, input[type=button], input[type=submit], a")].find(el => {
       const txt = norm(el.innerText || el.value || "");
       return txt.includes("calculate") && (el.offsetWidth || el.offsetHeight);
     });
 
-    if (calculate) {
-      calculate.addEventListener?.("click", async () => {
-        const text = await extractLogoText();
-        const logoInput = findInput(["captchavalue", "captchaValue", "captcha"]);
+    if (p.autoCalc !== false && calculate) {
+      setTimeout(() => {
+        const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
+        calculate.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+        calculate.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+        calculate.click();
 
-        if (logoInput) {
-          logoInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
-          logoInput.focus();
+        notice("Calculate clicked. Solving captcha...", false);
 
-          // Ensure entire extracted text is uppercase
-          const extractedText = (text || "").toUpperCase();
-
-          if (extractedText) {
-            logoInput.value = ""; // Clear first
-            let index = 0;
-
-            notice(`Typing code: ${extractedText}`, false);
-
-            const typingInterval = setInterval(() => {
-              if (index < extractedText.length) {
-                const char = extractedText[index];
-                logoInput.value += char;
-
-                // Dispatch full keyboard and input events so portal scripts register the keystroke
-                logoInput.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
-                logoInput.dispatchEvent(new KeyboardEvent("keypress", { key: char, bubbles: true }));
-                logoInput.dispatchEvent(new Event("input", { bubbles: true }));
-                logoInput.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
-                logoInput.dispatchEvent(new Event("change", { bubbles: true }));
-
-                index++;
-              } else {
-                clearInterval(typingInterval);
-                notice("Typing complete! Proceeding...", false);
-
-                // --- PROCEED TO PAYMENT CLICKER ---
-                setTimeout(() => {
-                  const paymentBtn = [...document.querySelectorAll("button, input[type=submit], input[type=button], a")].find(el => {
-                    const txt = norm(el.innerText || el.value || el.textContent || "");
-                    return txt.includes("proceed to payment") && (el.offsetWidth || el.offsetHeight);
-                  });
-
-                  if (paymentBtn) {
-                    notice("Clicking Proceed to payment...", false);
-                    const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-                    paymentBtn.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-                    paymentBtn.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-                    paymentBtn.click();
-                  } else {
-                    notice("Proceed to payment button not found.", true);
-                  }
-                }, 200); // Small buffer after typing finishes
-              }
-            }, 150); // 150ms delay per character to mimic natural typing
-          }
-        }
-      });
-    }
-
-
-    if (p.autoCalc !== false) {
-      if (calculate) {
         setTimeout(() => {
-          const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-          calculate.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-          calculate.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-          calculate.click();
-        }, 250);
-        notice("Autofill complete. Calculate clicked. Enter logo.", false);
-      } else {
-        notice("Autofill complete. Please click Calculate manually.", false);
-      }
+          solveAndTypeCaptcha();
+        }, 500);
+      }, 250);
     } else {
-      notice("Autofill complete. Enter logo.", false);
+      notice("Autofill complete. Please click Calculate and enter captcha.", false);
     }
-
-
 
     return filled;
   }
 
-  // Helper to click or select option in native select or custom Angular Material mat-select
-  async function selectDropdownOption(containerOrSelect, optionText) {
-    if (!containerOrSelect) return false;
-    const normTarget = norm(optionText);
-
-    // 1. If native HTMLSelectElement
-    if (containerOrSelect.tagName === "SELECT") {
-      const opt = [...containerOrSelect.options].find(o => norm(o.text).includes(normTarget));
-      if (opt) {
-        containerOrSelect.value = opt.value;
-        setValue(containerOrSelect, opt.value);
-        return true;
-      }
-    }
-
-    // 2. Locate the precise clickable trigger inside the mat-form-field
-    const trigger = (
-      containerOrSelect.querySelector?.(".mat-select-trigger, [cdk-overlay-origin], mat-select") ||
-      (containerOrSelect.classList?.contains("mat-select-trigger") ? containerOrSelect : null) ||
-      containerOrSelect
-    );
-
-    const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-
-    // Focus and click the trigger to open the Angular CDK overlay
-    trigger.focus?.();
-    trigger.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-    trigger.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-    trigger.click();
-    trigger.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
-
-    // Wait for the overlay mat-option to appear
-    const option = await waitFor(() => {
-      // Angular Material mounts mat-option inside .cdk-overlay-container
-      const options = [...document.querySelectorAll("mat-option, .mat-option, [role='option']")].filter(
-        el => (el.offsetWidth || el.offsetHeight)
-      );
-      return options.find(el => {
-        const txt = norm(el.innerText || el.textContent || "");
-        return txt === normTarget || txt.includes(normTarget);
-      }) || null;
-    }, 4500, 150);
-
-    if (option) {
-      await new Promise(r => setTimeout(r, 150));
-      option.scrollIntoView?.({ block: "nearest" });
-      option.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-      option.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-      option.click();
-      option.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
-      await new Promise(r => setTimeout(r, 300));
-      return true;
-    }
-
-    return false;
-  }
-
-  // STEP 5: Handle GRIPS Payment Portal (wbifms.gov.in/GRIPS/v2/#/g2-payment)
+  // STEP 2: Handle GRIPS Payment Portal (wbifms.gov.in/GRIPS/v2/#/g2-payment)
   async function handleGripsPayment(profile) {
     notice("GRIPS Payment page detected...", false);
 
-    // --- STEP 5.1: Review and Confirmation (Step 1) ---
+    // 2.1: Review and Confirmation checkbox
     const checkbox = await waitFor(() => {
       const checkboxes = [...document.querySelectorAll("input[type='checkbox']")];
       return checkboxes.find(cb => {
@@ -600,64 +363,53 @@
 
       if (nextBtn) {
         nextBtn.click();
-        notice("Review step completed. Loading Payment Mode selection...", false);
+        notice("Review step completed. Loading Payment Mode...", false);
       }
     }
 
-    // --- STEP 5.2: Payment Mode and Bank Selection (Step 2) ---
-    notice("Loading Payment Mode & Bank Selection...", false);
+    // 2.2: Payment Mode and Bank Selection
     await new Promise(r => setTimeout(r, 800));
 
-    // Find Payment Mode: mat-select with label 'Payment Mode' or id containing mat-select
     const paymentModeSelect = await waitFor(() => {
-      // 1. By ID or label from the actual DOM provided
       const byLabel = document.querySelector("mat-select[aria-labelledby*='mat-form-field-label-1'], #mat-select-0");
       if (byLabel && (byLabel.offsetWidth || byLabel.offsetHeight)) return byLabel;
 
-      // 2. By context 'Payment Mode'
       const allSelects = [...document.querySelectorAll("mat-select, [role='combobox']")].filter(
         el => (el.offsetWidth || el.offsetHeight)
       );
-      const match = allSelects.find(el => {
+      return allSelects.find(el => {
         const labelText = norm(el.closest(".mat-form-field")?.querySelector(".mat-form-field-label")?.innerText || "");
         return labelText.includes("payment mode");
-      });
-      return match || allSelects[0] || null;
-    }, 10000, 200);
+      }) || allSelects[0] || null;
+    }, 8000, 200);
 
     if (paymentModeSelect) {
-      notice("Selecting Payment Mode: SBI Epay...", false);
       const paymentModeTarget = profile.paymentMode || "SBI Epay";
+      notice(`Selecting Payment Mode: ${paymentModeTarget}...`, false);
       await selectDropdownOption(paymentModeSelect, paymentModeTarget);
 
-      // Delay for Angular to process selection and render the 'Pay through' dropdown
       await new Promise(r => setTimeout(r, 1200));
 
-      // Find Pay through: mat-select with label 'Pay through' or 'Bank'
       const payThroughSelect = await waitFor(() => {
-        // 1. By label/ID from DOM
         const byLabel = document.querySelector("mat-select[aria-labelledby*='mat-form-field-label-3'], #mat-select-2");
         if (byLabel && (byLabel.offsetWidth || byLabel.offsetHeight)) return byLabel;
 
-        // 2. By context 'Pay through' or 'Bank'
         const allSelects = [...document.querySelectorAll("mat-select, [role='combobox']")].filter(
           el => (el.offsetWidth || el.offsetHeight) && el !== paymentModeSelect
         );
-        const match = allSelects.find(el => {
+        return allSelects.find(el => {
           const labelText = norm(el.closest(".mat-form-field")?.querySelector(".mat-form-field-label")?.innerText || "");
           return labelText.includes("pay through") || labelText.includes("bank");
-        });
-        return match || allSelects[0] || null;
-      }, 8000, 200);
+        }) || allSelects[0] || null;
+      }, 6000, 200);
 
       if (payThroughSelect) {
-        notice("Selecting Pay through: Payment Gateway/Bank...", false);
         const payThroughTarget = profile.payThrough || "Payment Gateway";
+        notice(`Selecting Pay through: ${payThroughTarget}...`, false);
         await selectDropdownOption(payThroughSelect, payThroughTarget);
 
         await new Promise(r => setTimeout(r, 800));
 
-        // Click NEXT button on Step 2
         const nextBtn2 = await waitFor(() => {
           const buttons = [...document.querySelectorAll("button, input[type=button], input[type=submit], a")];
           return buttons.find(btn => {
@@ -669,13 +421,12 @@
         if (nextBtn2) {
           nextBtn2.scrollIntoView?.({ block: "center" });
           nextBtn2.click();
-          notice("Selected SBI Epay & Payment Gateway. Clicked Next.", false);
+          notice("Selected SBI Epay & Gateway. Clicked Next.", false);
         }
       }
     }
 
-    // --- STEP 5.3: Transaction Details & Pay Now (Step 3) ---
-    notice("Waiting for Transaction Details & Pay Now button...", false);
+    // 2.3: Transaction Details & Pay Now
     const payNowBtn = await waitFor(() => {
       const buttons = [...document.querySelectorAll("button, input[type=button], input[type=submit], a")];
       return buttons.find(btn => {
@@ -688,24 +439,21 @@
       await new Promise(r => setTimeout(r, 600));
       payNowBtn.scrollIntoView?.({ block: "center" });
       payNowBtn.click();
-      notice("Pay Now clicked! Redirecting to Payment Gateway...", false);
-      return "Pay Now clicked. Final payment redirect in progress.";
+      notice("Pay Now clicked! Redirecting to SBI ePay...", false);
+      return "Pay Now clicked. Payment redirect in progress.";
     }
 
     return "GRIPS payment automation in progress.";
   }
 
-  // STEP 6: Handle SBI ePay Gateway (epay.sbi.bank.in)
+  // STEP 3: Handle SBI ePay Gateway (epay.sbi.bank.in)
   async function handleSbiEpay() {
     notice("SBI ePay gateway detected. Selecting NEFT tab...", false);
 
-    // Wait for the NEFT element in .side_nav
     const neftTab = await waitFor(() => {
-      // 1. Direct ID / class from provided DOM
       const direct = document.querySelector("#activeNEFT a, li#activeNEFT, a.collapse5");
       if (direct && (direct.offsetWidth || direct.offsetHeight)) return direct;
 
-      // 2. Fallback search by text within .side_nav
       const navLinks = [...document.querySelectorAll(".side_nav a, .side_nav li, a, button")].filter(
         el => (el.offsetWidth || el.offsetHeight)
       );
@@ -736,10 +484,7 @@
   // Master action router
   async function runAction(profile) {
     const url = window.location.href;
-    if (url.includes("avilable-slot")) {
-      const res = await handleAvailableSlots(profile);
-      return res;
-    } else if (url.includes("slot-booking") || url.includes("booking")) {
+    if (url.includes("slot-booking") || url.includes("booking")) {
       const filled = handleBookingForm(profile);
       return "Filled: " + (filled.join(", ") || "No matching fields found");
     } else if (url.includes("wbifms.gov.in") || url.includes("g2-payment") || url.includes("GRIPS")) {
@@ -749,8 +494,8 @@
       const res = await handleSbiEpay();
       return res;
     } else {
-      notice("Ready. Navigate to slot, booking or payment page.", false);
-      return "Current page is not recognized as slot, booking, or payment form.";
+      notice("Ready. Open Suvidha slot booking or payment page.", false);
+      return "Current page is not recognized as slot booking or payment form.";
     }
   }
 
@@ -764,23 +509,25 @@
     }
   });
 
-  // Auto-run on page load if enabled in profile (or auto-handle payment portals)
+  // Auto-run on page load if enabled in profile
   chrome.storage.local.get("profile", ({ profile }) => {
-    const isPaymentPortal = (
-      window.location.href.includes("wbifms.gov.in") ||
-      window.location.href.includes("g2-payment") ||
-      window.location.href.includes("epay.sbi.bank.in")
+    const url = window.location.href;
+    const isTargetPage = (
+      url.includes("slot-booking") ||
+      url.includes("wbifms.gov.in") ||
+      url.includes("g2-payment") ||
+      url.includes("epay.sbi.bank.in")
     );
-    if (profile?.autoRun || isPaymentPortal) {
+    if ((profile?.autoRun !== false && isTargetPage) || (profile?.autoRun && isTargetPage)) {
       setTimeout(() => runAction(profile || {}), 600);
     }
   });
 
-  // Error detection via MutationObserver (using textContent to prevent layout thrashing)
+  // Error detection via MutationObserver
   new MutationObserver(() => {
     const text = norm(document.body?.textContent);
-    if (text.includes("logo code does not match")) {
-      notice("logo failed. Please check and enter it again.", true);
+    if (text.includes("logo code does not match") || text.includes("captcha does not match")) {
+      notice("Captcha verification failed. Please enter it again.", true);
     }
   }).observe(document.body, { subtree: true, childList: true });
 

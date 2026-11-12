@@ -11,7 +11,7 @@
     }
 
     body {
-      width: 360px;
+      width: 340px;
       padding: 14px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       font-size: 13px;
@@ -21,7 +21,7 @@
 
     h2 {
       color: #531b91;
-      font-size: 17px;
+      font-size: 16px;
       margin-bottom: 12px;
       display: flex;
       align-items: center;
@@ -69,8 +69,7 @@
       margin-top: 2px;
     }
 
-    input,
-    select {
+    input {
       width: 100%;
       padding: 7px 9px;
       margin-top: 4px;
@@ -80,8 +79,7 @@
       background: #fff;
     }
 
-    input:focus,
-    select:focus {
+    input:focus {
       outline: none;
       border-color: #7c3aed;
       box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
@@ -141,67 +139,17 @@
       color: #475569;
       word-break: break-word;
     }
-
-    .helper-text {
-      font-size: 11px;
-      color: #64748b;
-      margin-top: 3px;
-    }
   </style>
 </head>
 
 <body>
   <h2>
-    Suvidha Booking Assistant
-    <span class="badge-version">v1.1.0</span>
+    Suvidha Assistant
+    <span class="badge-version">v1.2.0</span>
   </h2>
 
-  <!-- Section 1: Step 1-3 Slot Selection -->
   <div class="section">
-    <div class="section-title">1. Slot & Calendar Setup</div>
-
-    <label for="goodsType">Type of Goods</label>
-    <select id="goodsType">
-      <option value="NON-PERISHABLE">NON-PERISHABLE</option>
-      <option value="PERISHABLE AND PRIORITY GOODS">PERISHABLE AND PRIORITY GOODS</option>
-    </select>
-
-    <label for="goodsCategory">Vehicle / Goods Category</label>
-    <select id="goodsCategory">
-      <option value="OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)">OTHERS - NON PERISHABLE (UP TO 06 WHEELERS)</option>
-      <option value="OTHERS - NON PERISHABLE (MORE THAN 06 WHEELER TO 12 WHEELER)">OTHERS - NON PERISHABLE (MORE THAN 06
-        WHEELER TO 12 WHEELER)</option>
-      <option value="OTHERS - NON PERISHABLE (14 WHEELER TO 18 WHEELER)">OTHERS - NON PERISHABLE (14 WHEELER TO 18
-        WHEELER)</option>
-      <option value="OTHERS - NON PERISHABLE (20 WHEELER AND ABOVE)">OTHERS - NON PERISHABLE (20 WHEELER AND ABOVE)
-      </option>
-      <option value="STONE CHIPS (UP TO 12 WHEELER)">STONE CHIPS (UP TO 12 WHEELER)</option>
-      <option
-        value="COTTON / YARN / FABRIC / SOFTEX 100 / TEXTILE FINISHING AGENT / SILK WASTE (MORE THAN 06 WHEELER TO 12 WHEELER)">
-        COTTON / YARN / FABRIC (MORE THAN 06 TO 12 WHEELERS)</option>
-    </select>
-
-    <label for="slotMode">Slot Selection Mode</label>
-    <select id="slotMode">
-      <option value="first">First Available (+ icon)</option>
-      <option value="custom">Select Own Date</option>
-    </select>
-
-    <div id="slotDateWrapper" style="display: none;">
-      <label for="slotDate">Target Slot Date</label>
-      <input id="slotDate" type="date">
-      <div class="helper-text">Select date to auto-click '+' on the calendar (e.g., 2026-11-08)</div>
-    </div>
-
-    <label class="checkbox-label">
-      <input type="checkbox" id="autoSlot" checked>
-      <span>Auto-click '+' slot on calendar</span>
-    </label>
-  </div>
-
-  <!-- Section 2: Step 4 Booking Form Details -->
-  <div class="section">
-    <div class="section-title">2. Exporter Booking Details</div>
+    <div class="section-title">Exporter Booking Details</div>
 
     <label for="goods">Name of the Goods</label>
     <input id="goods" placeholder="e.g. Basmati Rice / Wheat / Maize">
@@ -223,7 +171,7 @@
 
     <label class="checkbox-label">
       <input type="checkbox" id="autoCalc" checked>
-      <span>Auto-click Calculate button</span>
+      <span>Auto-click Calculate & Solve Captcha</span>
     </label>
 
     <label class="checkbox-label">

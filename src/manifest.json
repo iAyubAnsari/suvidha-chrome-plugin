@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Suvidha Booking Assistant",
-  "version": "1.1.0",
-  "description": "Exporter booking form assistant by Ayub Ansari",
+  "version": "1.2.0",
+  "description": "Suvidha Exporter Booking Assistant by Ayub Ansari",
   "permissions": [
     "storage",
     "activeTab"
@@ -11,7 +11,8 @@
     "https://suvidha-mp.wb.gov.in/*",
     "https://wbifms.gov.in/*",
     "https://epay.sbi.bank.in/*",
-    "https://generativelanguage.googleapis.com/*"
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -40,19 +41,6 @@
         "content.js"
       ],
       "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "node_modules/tesseract.js/dist/tesseract.min.js",
-        "tessdata/eng.traineddata",
-        "tesseract-worker.min.js",
-        "tesseract-core-simd-lstm.wasm.js"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
     }
   ]
 }

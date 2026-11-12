@@ -1,10 +1,6 @@
 (() => {
   // src/popup.js
   var textIds = [
-    "goodsType",
-    "goodsCategory",
-    "slotMode",
-    "slotDate",
     "goods",
     "udin",
     "lcNumber",
@@ -12,20 +8,8 @@
     "importer",
     "vehicles"
   ];
-  var boolIds = ["autoSlot", "autoCalc", "autoRun"];
+  var boolIds = ["autoCalc", "autoRun"];
   var statusEl = document.getElementById("status");
-  var slotModeEl = document.getElementById("slotMode");
-  var slotDateWrapperEl = document.getElementById("slotDateWrapper");
-  function syncSlotModeUI() {
-    if (!slotModeEl) return;
-    const isCustom = slotModeEl.value === "custom";
-    if (slotDateWrapperEl && slotDateWrapperEl.style) {
-      slotDateWrapperEl.style.display = isCustom ? "block" : "none";
-    }
-  }
-  if (slotModeEl) {
-    slotModeEl.onchange = syncSlotModeUI;
-  }
   function getProfile() {
     const p = {};
     textIds.forEach((id) => {
@@ -39,22 +23,15 @@
     return p;
   }
   chrome.storage.local.get("profile", ({ profile }) => {
-    if (!profile) {
-      syncSlotModeUI();
-      return;
-    }
+    if (!profile) return;
     textIds.forEach((id) => {
       const el = document.getElementById(id);
       if (el && profile[id] !== void 0) el.value = profile[id];
     });
-    if (slotModeEl && !profile.slotMode) {
-      slotModeEl.value = profile.slotDate ? "custom" : "first";
-    }
     boolIds.forEach((id) => {
       const el = document.getElementById(id);
       if (el && profile[id] !== void 0) el.checked = Boolean(profile[id]);
     });
-    syncSlotModeUI();
   });
   document.getElementById("save").onclick = async () => {
     const profile = getProfile();
@@ -69,8 +46,8 @@
     await chrome.storage.local.set({ profile });
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     const tabUrl = tab?.url || tab?.pendingUrl || "";
-    if (!tabUrl.startsWith("https://suvidha-mp.wb.gov.in/exporter-oth/")) {
-      statusEl.textContent = "Open the Suvidha slot or booking page first.";
+    if (!tabUrl.includes("slot-booking") && !tabUrl.includes("wbifms.gov.in") && !tabUrl.includes("epay.sbi.bank.in")) {
+      statusEl.textContent = "Open the Suvidha slot booking or payment page first.";
       return;
     }
     chrome.tabs.sendMessage(tab.id, {

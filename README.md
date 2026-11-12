@@ -4,43 +4,64 @@ A Manifest V3 Google Chrome extension designed for exporters using the West Beng
 
 ---
 
+## Workflow Overview
+
+1. **Manual Slot Step (`/exporter-oth/avilable-slot`)**:
+   - The user manually selects **Type of Goods**, **Vehicle / Goods Category**, and chooses their desired date slot on the calendar.
+2. **Automated Booking Step (`/exporter-oth/slot-booking`)**:
+   - Once the user lands on the booking page, Suvidha Assistant takes over automatically:
+     - Autofills **Name of Goods**, **UDIN**, **LC Number**, **LC Date**, **Importer**, and **Vehicles**.
+     - Clicks **Calculate**.
+     - Captures the CAPTCHA image and sends it to the local Python OCR microservice.
+     - Simulates natural keystroke typing to enter the CAPTCHA code.
+     - Clicks **Proceed to payment**.
+3. **Automated GRIPS Treasury Payment (`wbifms.gov.in/GRIPS/v2/#/g2-payment`)**:
+   - Confirms "Verified and checked" and advances through the review step.
+   - Selects **Payment Mode** (SBI ePay) and **Bank / Gateway** options via Angular Material dropdowns.
+   - Clicks **Pay Now**.
+4. **Automated SBI ePay Gateway (`epay.sbi.bank.in`)**:
+   - Detects the payment gateway and automatically activates the **NEFT / RTGS** tab.
+
+---
+
 ## Project Structure
 
 ```
 suvidha-chrome-plugin/
-├── package.json           # Node.js dependencies (axios, esbuild, etc.)
+├── package.json           # Node.js scripts and devDependencies
 ├── build.mjs              # esbuild bundler configuration
-├── src/                   # Source files (supports standard ES imports like 'axios')
-│   ├── manifest.json
-│   ├── popup.html
-│   ├── popup.js           # Can import npm packages (e.g. import axios from 'axios')
-│   ├── content.js         # Injected script
+├── python-ocr/            # Local FastAPI OCR microservice
+│   ├── server.py          # EasyOCR + OpenCV captcha resolver
+│   └── requirements.txt   # fastapi, uvicorn, easyocr, opencv-python-headless
+├── src/                   # Source files
+│   ├── manifest.json      # Manifest V3 configuration
+│   ├── popup.html         # Exporter profile configuration popup
+│   ├── popup.js           # Popup settings persistence and triggers
+│   ├── content.js         # Content script router and DOM automation
+│   ├── background.js      # Service worker bridge to local OCR server
 │   └── icons/
-├── chrome-extensions/     # Built extension directory (load this in Chrome)
-│   ├── manifest.json
-│   ├── popup.html
-│   ├── popup.js
-│   ├── content.js
-│   └── icons/
-└── test/                  # Test suite
+├── chrome-extensions/     # Compiled output directory (Load unpacked in Chrome)
+└── test/                  # Automated test suite
 ```
 
 ---
 
 ## Getting Started
 
-### 1. Install Dependencies
+### 1. Start the Local Python OCR Server
 ```bash
-npm install
+cd python-ocr
+pip install -r requirements.txt
+python server.py
 ```
+The OCR server will run at `http://127.0.0.1:8000`.
 
 ### 2. Build the Extension
 ```bash
+npm install
 npm run build
 ```
-This bundles all JavaScript files into standalone bundles in the `chrome-extensions/` folder.
-
-To continuously rebuild on file changes while developing:
+For active development with continuous rebuilds on file change:
 ```bash
 npm run dev
 ```
@@ -54,26 +75,8 @@ npm test
 
 ## Loading in Google Chrome
 
-1. Open Chrome and navigate to `chrome://extensions/`.
-2. Toggle **Developer mode** on (top-right corner).
+1. Open Google Chrome and go to `chrome://extensions/`.
+2. Enable **Developer mode** (top right switch).
 3. Click **Load unpacked**.
-4. Select the **`chrome-extensions`** directory inside this project folder.
-5. Pin **Suvidha Booking Assistant** to your browser toolbar.
-
----
-
-## Using NPM Packages (e.g., Axios)
-
-You can import packages directly in `src/popup.js` or `src/content.js`:
-
-```javascript
-import axios from 'axios';
-
-// Example: Fetch data via axios
-async function fetchData() {
-  const response = await axios.get('https://example.com/api');
-  console.log(response.data);
-}
-```
-
-Run `npm run build` (or have `npm run dev` running), and esbuild will bundle the dependencies automatically into `chrome-extensions/`.
+4. Select the **`chrome-extensions`** directory.
+5. Click the extension icon to save your default exporter details.

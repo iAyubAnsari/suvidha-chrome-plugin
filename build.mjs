@@ -7,6 +7,7 @@ const buildOptions = {
   entryPoints: {
     popup: 'src/popup.js',
     content: 'src/content.js',
+    background: 'src/background.js',
   },
   bundle: true,
   outdir: 'chrome-extensions',
@@ -19,22 +20,10 @@ async function copyStaticAssets() {
   fs.mkdirSync('chrome-extensions', { recursive: true });
   fs.copyFileSync('src/manifest.json', 'chrome-extensions/manifest.json');
   fs.copyFileSync('src/popup.html', 'chrome-extensions/popup.html');
-  fs.cpSync('src/icons', 'chrome-extensions/icons', { recursive: true });
-
-  // ADD THIS LINE to copy your local language files over to the build folder
-  fs.cpSync('src/tessdata', 'chrome-extensions/tessdata', { recursive: true });
-
-  // Copy tesseract worker & WASM core files locally for offline/CSP compliance
-  fs.copyFileSync(
-    'node_modules/tesseract.js/dist/worker.min.js',
-    'chrome-extensions/tesseract-worker.min.js'
-  );
-  fs.copyFileSync(
-    'node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js',
-    'chrome-extensions/tesseract-core-simd-lstm.wasm.js'
-  );
+  if (fs.existsSync('src/icons')) {
+    fs.cpSync('src/icons', 'chrome-extensions/icons', { recursive: true });
+  }
 }
-
 
 async function build() {
   await copyStaticAssets();
@@ -53,4 +42,3 @@ build().catch(err => {
   console.error(err);
   process.exit(1);
 });
-
