@@ -11,6 +11,7 @@
     "https://suvidha-mp.wb.gov.in/*",
     "https://wbifms.gov.in/*",
     "https://epay.sbi.bank.in/*",
+    "https://*.sbiepay.sbi/*",
     "http://127.0.0.1:8000/*",
     "http://localhost:8000/*"
   ],
@@ -35,11 +36,13 @@
       "matches": [
         "https://suvidha-mp.wb.gov.in/exporter-oth/*",
         "https://wbifms.gov.in/GRIPS/*",
-        "https://epay.sbi.bank.in/*"
+        "https://epay.sbi.bank.in/*",
+        "https://*.sbiepay.sbi/*"
       ],
       "js": [
         "content.js"
       ],
+      "all_frames": true,
       "run_at": "document_idle"
     }
   ]

@@ -446,32 +446,59 @@
     return "GRIPS payment automation in progress.";
   }
 
-  // STEP 3: Handle SBI ePay Gateway (epay.sbi.bank.in)
+  // STEP 3: Handle SBI ePay Gateway (epay.sbi.bank.in / sbiepay.sbi)
   async function handleSbiEpay() {
     notice("SBI ePay gateway detected. Selecting NEFT tab...", false);
 
-    const neftTab = await waitFor(() => {
-      const direct = document.querySelector("#activeNEFT a, li#activeNEFT, a.collapse5");
-      if (direct && (direct.offsetWidth || direct.offsetHeight)) return direct;
+    const neftAnchor = await waitFor(() => {
+      // 1. Direct anchor matching the exact portal HTML:
+      // <li id="activeNEFT" class="activeNEFT active"><a href="#" class="collapse5" onclick="calcFees('NEFT/RTGS',null,this,this.id)">
+      const direct = document.querySelector(
+        "#activeNEFT a.collapse5, #activeNEFT a, a.collapse5, li#activeNEFT a, li.activeNEFT a"
+      );
+      if (direct && (direct.offsetWidth || direct.offsetHeight || direct.getClientRects().length > 0)) {
+        return direct;
+      }
 
+      // 2. Locate #activeNEFT container and get its anchor
+      const li = document.querySelector("#activeNEFT, li.activeNEFT");
+      if (li) {
+        const childAnchor = li.querySelector("a");
+        if (childAnchor) return childAnchor;
+        if (li.offsetWidth || li.offsetHeight || li.getClientRects().length > 0) return li;
+      }
+
+      // 3. Fallback search by text within .side_nav
       const navLinks = [...document.querySelectorAll(".side_nav a, .side_nav li, a, button")].filter(
-        el => (el.offsetWidth || el.offsetHeight)
+        el => (el.offsetWidth || el.offsetHeight || el.getClientRects().length > 0)
       );
       return navLinks.find(el => {
         const txt = norm(el.innerText || el.textContent || "");
-        return txt === "neft" || txt.includes("neft");
+        return txt === "neft" || txt.startsWith("neft");
       }) || null;
-    }, 10000, 200);
+    }, 12000, 200);
 
-    if (neftTab) {
+    if (neftAnchor) {
       await new Promise(r => setTimeout(r, 400));
-      neftTab.scrollIntoView?.({ block: "center" });
+      neftAnchor.scrollIntoView?.({ block: "center", inline: "center" });
+
+      const target = (neftAnchor.tagName === "A") ? neftAnchor : (neftAnchor.querySelector("a") || neftAnchor);
 
       const EventCtor = typeof MouseEvent !== "undefined" ? MouseEvent : Event;
-      neftTab.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
-      neftTab.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
-      neftTab.click();
-      neftTab.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new EventCtor("mouseover", { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new EventCtor("mousedown", { bubbles: true, cancelable: true, view: window }));
+      target.dispatchEvent(new EventCtor("mouseup", { bubbles: true, cancelable: true, view: window }));
+      target.click();
+      target.dispatchEvent(new EventCtor("click", { bubbles: true, cancelable: true, view: window }));
+
+      // Also trigger onclick function directly if bound to element
+      if (typeof target.onclick === "function") {
+        try {
+          target.onclick.call(target, { target, currentTarget: target, preventDefault: () => {} });
+        } catch (e) {
+          // ignore error
+        }
+      }
 
       notice("NEFT selected! Ready for Pay Now.", false);
       return "NEFT tab selected on SBI ePay.";
@@ -484,13 +511,20 @@
   // Master action router
   async function runAction(profile) {
     const url = window.location.href;
+    const isSbiEpay = (
+      url.includes("epay.sbi.bank.in") ||
+      url.includes("sbiepay.sbi") ||
+      url.includes("AggregatorHostedListener") ||
+      Boolean(document.querySelector(".side_nav #activeNEFT, #activeNEFT, a.collapse5"))
+    );
+
     if (url.includes("slot-booking") || url.includes("booking")) {
       const filled = handleBookingForm(profile);
       return "Filled: " + (filled.join(", ") || "No matching fields found");
     } else if (url.includes("wbifms.gov.in") || url.includes("g2-payment") || url.includes("GRIPS")) {
       const res = await handleGripsPayment(profile);
       return res;
-    } else if (url.includes("epay.sbi.bank.in") || url.includes("AggregatorHostedListener")) {
+    } else if (isSbiEpay) {
       const res = await handleSbiEpay();
       return res;
     } else {
@@ -516,7 +550,10 @@
       url.includes("slot-booking") ||
       url.includes("wbifms.gov.in") ||
       url.includes("g2-payment") ||
-      url.includes("epay.sbi.bank.in")
+      url.includes("epay.sbi.bank.in") ||
+      url.includes("sbiepay.sbi") ||
+      url.includes("AggregatorHostedListener") ||
+      Boolean(document.querySelector(".side_nav #activeNEFT, #activeNEFT, a.collapse5"))
     );
     if ((profile?.autoRun !== false && isTargetPage) || (profile?.autoRun && isTargetPage)) {
       setTimeout(() => runAction(profile || {}), 600);

@@ -565,4 +565,8 @@ test('4. Content Script (content.js)', async (t) => {
     await new Promise(r => setTimeout(r, 1200));
     assert.equal(neftTab.clicked, true, 'NEFT tab was clicked');
   });
+
+  t.after(() => {
+    setTimeout(() => process.exit(0), 50);
+  });
 });
