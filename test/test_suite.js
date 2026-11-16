@@ -63,7 +63,7 @@ test('3. Popup Logic (popup.js)', async (t) => {
   function createPopupContext(initialStorage = {}, tabUrl = 'https://suvidha-mp.wb.gov.in/exporter-oth/slot-booking') {
     const elements = {};
     const ids = [
-      'goods', 'udin', 'lcNumber', 'lcDate', 'importer', 'vehicles',
+      'goods', 'udin', 'udinHelper', 'lcNumber', 'lcHelper', 'lcDate', 'importer', 'vehicles',
       'autoCalc', 'autoRun', 'save', 'fill', 'status'
     ];
     ids.forEach(id => {
