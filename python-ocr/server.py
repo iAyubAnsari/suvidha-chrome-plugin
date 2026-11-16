@@ -76,6 +76,32 @@ async def solve_captcha(data: CaptchaRequest):
         print(f"OCR Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def find_safe_port(default_port=18000):
+    import socket
+    # Candidate ports strictly above Windows dynamic port range (1024-15001) to prevent Errno 10013
+    candidates = [default_port, 18080, 28000, 50505]
+    for p in candidates:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", p))
+                return p
+            except OSError:
+                continue
+    return default_port
+
 if __name__ == "__main__":
+    import os
+    import sys
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+
+    # Default to safe port 18000 (above Windows reserved dynamic range 1024-15001)
+    custom_port = os.environ.get("OCR_PORT")
+    if custom_port and custom_port.isdigit():
+        port = int(custom_port)
+    elif len(sys.argv) > 1 and sys.argv[1].isdigit():
+        port = int(sys.argv[1])
+    else:
+        port = find_safe_port(18000)
+
+    print(f"Starting Suvidha OCR Server on http://127.0.0.1:{port}")
+    uvicorn.run(app, host="127.0.0.1", port=port)

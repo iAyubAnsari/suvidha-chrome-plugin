@@ -54,7 +54,11 @@ cd python-ocr
 pip install -r requirements.txt
 python server.py
 ```
-The OCR server will run at `http://127.0.0.1:8000`.
+The OCR server will run on dedicated safe port `http://127.0.0.1:18000` (outside the Windows dynamic socket reservation range 1024-15001).
+You can also specify a custom port if needed:
+```bash
+python server.py 18000
+```
 
 ### 2. Build the Extension
 ```bash
