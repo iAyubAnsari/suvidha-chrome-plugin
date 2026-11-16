@@ -155,10 +155,12 @@
     <input id="goods" placeholder="e.g. Basmati Rice / Wheat / Maize">
 
     <label for="udin">UDIN of LC</label>
-    <input id="udin" maxlength="25" placeholder="Enter 25 alphanumeric UDIN">
+    <input id="udin" maxlength="35" placeholder="e.g. 26-S-SE117906-C-1794750136885">
+    <div class="helper-text">Format: 26-S-SE117906-C-1794750136885</div>
 
     <label for="lcNumber">LC Number</label>
-    <input id="lcNumber" placeholder="Enter LC Number">
+    <input id="lcNumber" minlength="12" maxlength="16" placeholder="Enter 12 to 16 digit LC Number">
+    <div class="helper-text">Must be 12 to 16 digits</div>
 
     <label for="lcDate">LC Date</label>
     <input id="lcDate" type="date">

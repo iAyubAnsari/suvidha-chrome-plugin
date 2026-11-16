@@ -73,7 +73,9 @@ test('3. Popup Logic (popup.js)', async (t) => {
         checked: false,
         textContent: '',
         onclick: null,
-        onchange: null
+        onchange: null,
+        style: {},
+        addEventListener: () => {}
       };
     });
 
@@ -140,8 +142,8 @@ test('3. Popup Logic (popup.js)', async (t) => {
     const { ctx, elements } = createPopupContext({
       profile: {
         goods: 'Rice',
-        udin: 'UDIN123456789012345678',
-        lcNumber: 'LC999',
+        udin: '26SSE117906C1794750136885',
+        lcNumber: '236926010511',
         lcDate: '2026-11-01',
         importer: 'Dhaka Imports Ltd',
         vehicles: '5',
@@ -153,8 +155,8 @@ test('3. Popup Logic (popup.js)', async (t) => {
     vm.runInContext(popupJsCode, ctx);
 
     assert.equal(elements.goods.value, 'Rice');
-    assert.equal(elements.udin.value, 'UDIN123456789012345678');
-    assert.equal(elements.lcNumber.value, 'LC999');
+    assert.equal(elements.udin.value, '26-S-SE117906-C-1794750136885');
+    assert.equal(elements.lcNumber.value, '236926010511');
     assert.equal(elements.lcDate.value, '2026-11-01');
     assert.equal(elements.importer.value, 'Dhaka Imports Ltd');
     assert.equal(elements.vehicles.value, '5');
@@ -162,13 +164,13 @@ test('3. Popup Logic (popup.js)', async (t) => {
     assert.equal(elements.autoRun.checked, true);
   });
 
-  await t.test('Save button persists profile to storage', async () => {
+  await t.test('Save button persists profile to storage with formatting and LC validation', async () => {
     const { ctx, elements, storage } = createPopupContext();
     vm.runInContext(popupJsCode, ctx);
 
     elements.goods.value = 'Basmati Rice';
-    elements.udin.value = 'UDIN999';
-    elements.lcNumber.value = 'LC888';
+    elements.udin.value = '26SSE117906C1794750136885';
+    elements.lcNumber.value = '236926010511';
     elements.lcDate.value = '2026-11-05';
     elements.importer.value = 'Global Traders';
     elements.vehicles.value = '2';
@@ -179,8 +181,8 @@ test('3. Popup Logic (popup.js)', async (t) => {
 
     assert.deepEqual(JSON.parse(JSON.stringify(storage.profile)), {
       goods: 'Basmati Rice',
-      udin: 'UDIN999',
-      lcNumber: 'LC888',
+      udin: '26-S-SE117906-C-1794750136885',
+      lcNumber: '236926010511',
       lcDate: '2026-11-05',
       importer: 'Global Traders',
       vehicles: '2',
@@ -438,8 +440,8 @@ test('4. Content Script (content.js)', async (t) => {
       type: 'SUVIDHA_TRIGGER',
       profile: {
         goods: 'Basmati Rice',
-        udin: 'UDIN123456789012345678',
-        lcNumber: 'LC9988',
+        udin: '26SSE117906C1794750136885',
+        lcNumber: '236926010511',
         lcDate: '2026-11-05',
         importer: 'Dhaka Imports',
         vehicles: '4',
@@ -450,8 +452,8 @@ test('4. Content Script (content.js)', async (t) => {
     await new Promise(r => setTimeout(r, 450));
 
     assert.equal(inputGoods.value, 'Basmati Rice');
-    assert.equal(inputUdin.value, 'UDIN123456789012345678');
-    assert.equal(inputLcNumber.value, 'LC9988');
+    assert.equal(inputUdin.value, '26-S-SE117906-C-1794750136885');
+    assert.equal(inputLcNumber.value, '236926010511');
     // mm/dd/yyyy format converted from yyyy-mm-dd
     assert.equal(inputLcDate.value, '11/05/2026');
     assert.equal(inputImporter.value, 'Dhaka Imports');

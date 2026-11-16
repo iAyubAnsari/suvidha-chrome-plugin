@@ -32,6 +32,9 @@
     }
     function setValue(el, value) {
       if (!el || value === void 0 || value === null || value === "") return false;
+      if (el.maxLength && el.maxLength > 0 && el.maxLength < String(value).length) {
+        el.maxLength = String(value).length + 5;
+      }
       const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
       const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
       if (setter) setter.call(el, String(value));
@@ -192,6 +195,19 @@
         }
       }, 120);
     }
+    function formatUdin(val) {
+      if (!val) return "";
+      const str = String(val).trim().toUpperCase();
+      const cleanAlnum = str.replace(/[^A-Z0-9]/g, "");
+      if (cleanAlnum.length === 25) {
+        return `${cleanAlnum.slice(0, 2)}-${cleanAlnum.slice(2, 3)}-${cleanAlnum.slice(3, 11)}-${cleanAlnum.slice(11, 12)}-${cleanAlnum.slice(12, 25)}`;
+      }
+      const parts = str.split(/[\s\-_]+/).filter(Boolean);
+      if (parts.length === 5 && cleanAlnum.length === 25) {
+        return parts.join("-");
+      }
+      return str;
+    }
     function handleBookingForm(p) {
       notice("Filling booking details...");
       const fields = [
@@ -202,12 +218,12 @@
         ],
         [
           ["25 alphanumeric udin", "udin of lc", "udin"],
-          p.udin,
+          formatUdin(p.udin),
           "UDIN"
         ],
         [
           ["enter the lc number", "lc number", "lc no"],
-          p.lcNumber,
+          p.lcNumber ? String(p.lcNumber).trim().slice(0, 16) : "",
           "LC number"
         ],
         [
