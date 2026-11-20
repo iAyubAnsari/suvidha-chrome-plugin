@@ -32,6 +32,9 @@
     }
     function setValue(el, value) {
       if (!el || value === void 0 || value === null || value === "") return false;
+      if (el.type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
+        return false;
+      }
       if (el.maxLength && el.maxLength > 0 && el.maxLength < String(value).length) {
         el.maxLength = String(value).length + 5;
       }
@@ -43,10 +46,12 @@
       el.dispatchEvent(new Event("change", { bubbles: true }));
       return true;
     }
-    function findInput(terms) {
-      const inputs = [...document.querySelectorAll("input:not([type=hidden]), textarea")].filter(
-        (el) => el.offsetWidth || el.offsetHeight
-      );
+    function findInput(terms, options = {}) {
+      const inputs = [...document.querySelectorAll("input:not([type=hidden]), textarea")].filter((el) => {
+        if (!el.offsetWidth && !el.offsetHeight) return false;
+        if (options.excludeDate && el.type === "date") return false;
+        return true;
+      });
       const directMatch = inputs.find((el) => {
         const directContext = norm([
           el.id,
@@ -152,7 +157,10 @@
       }
     }
     async function solveAndTypeCaptcha() {
-      const logoInput = findInput(["captchavalue", "captchacode", "captcha", "logo", "logocode", "enter logo code"]);
+      const logoInput = findInput(
+        ["captchavalue", "captchacode", "captcha", "logo", "logocode", "enter logo code"],
+        { excludeDate: true }
+      );
       if (!logoInput) {
         notice("Captcha input field not found.", true);
         return;
@@ -212,40 +220,46 @@
       notice("Filling booking details...");
       const fields = [
         [
-          ["goods you want to export", "name of the goods", "name of goods", "goods name", "goods"],
+          ["goods you want to export", "name of the goods", "name of goods", "goods name"],
           p.goods,
-          "Goods"
+          "Goods",
+          { excludeDate: true }
         ],
         [
           ["25 alphanumeric udin", "udin of lc", "udin"],
           formatUdin(p.udin),
-          "UDIN"
+          "UDIN",
+          { excludeDate: true }
         ],
         [
           ["enter the lc number", "lc number", "lc no"],
           p.lcNumber ? String(p.lcNumber).trim().slice(0, 16) : "",
-          "LC number"
+          "LC number",
+          { excludeDate: true }
         ],
         [
           ["mm/dd/yyyy", "lc date"],
           p.lcDate,
-          "LC date"
+          "LC date",
+          {}
         ],
         [
           ["name of the importer", "name of importer", "importer name", "importer"],
           p.importer,
-          "Importer"
+          "Importer",
+          { excludeDate: true }
         ],
         [
           ["enter total number of vehicle", "total number of vehicles", "number of vehicles", "vehicles"],
           p.vehicles,
-          "Vehicles"
+          "Vehicles",
+          { excludeDate: true }
         ]
       ];
       const filled = [];
-      fields.forEach(([terms, val, label]) => {
+      fields.forEach(([terms, val, label, options]) => {
         if (val === void 0 || val === null || val === "") return;
-        const el = findInput(terms);
+        const el = findInput(terms, options || {});
         if (el) {
           let formattedVal = val;
           if (label === "LC date" && el.type !== "date" && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
@@ -255,7 +269,10 @@
           if (setValue(el, formattedVal)) filled.push(label);
         }
       });
-      const logoInput = findInput(["captchavalue", "captchacode", "captcha", "logo", "logocode", "enter logo code"]);
+      const logoInput = findInput(
+        ["captchavalue", "captchacode", "captcha", "logo", "logocode", "enter logo code"],
+        { excludeDate: true }
+      );
       if (logoInput) {
         logoInput.focus();
       }
