@@ -336,7 +336,7 @@ test('4. Content Script (content.js)', async (t) => {
         return results[0] || null;
       },
       querySelectorAll: (sel) => {
-        if (sel.includes('input:not([type=hidden]), textarea')) {
+        if (sel.includes('input') || sel.includes('textarea')) {
           return allElements.filter(e =>
             (e instanceof HTMLInputElement || e instanceof HTMLTextAreaElement) && e.type !== 'hidden'
           );

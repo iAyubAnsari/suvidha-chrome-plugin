@@ -59,33 +59,115 @@
     return true;
   }
 
-  // Search input/textarea by matching label, name, id, placeholder, or parent container text
-  function findInput(terms, options = {}) {
-    const inputs = [...document.querySelectorAll("input:not([type=hidden]), textarea")].filter(el => {
+  // Intelligent Semantic Field Matcher: Type Affinity, Proximity Scoring, and Conflict Prevention
+  function findSmartInput(spec, usedElements = new Set()) {
+    const {
+      terms = [],
+      negativeTerms = [],
+      expectedType = "text", // "text" | "date" | "number"
+      allowTextarea = false
+    } = spec;
+
+    const allInputs = [...document.querySelectorAll("input:not([type=hidden]), textarea")].filter(el => {
+      if (usedElements.has(el)) return false;
+      const t = (el.type || "text").toLowerCase();
+      if (t === "hidden" || t === "submit" || t === "button" || t === "checkbox" || t === "radio") return false;
+      if (el.disabled || el.readOnly || el.getAttribute("aria-readonly") === "true") return false;
       if (!el.offsetWidth && !el.offsetHeight) return false;
-      if (options.excludeDate && el.type === "date") return false;
+      if (el.tagName === "TEXTAREA" && !allowTextarea) return false;
       return true;
     });
 
-    // 1st pass: strict check on direct element attributes
-    const directMatch = inputs.find(el => {
+    let bestElement = null;
+    let highestScore = -Infinity;
+
+    for (const el of allInputs) {
+      let score = 0;
+      const elType = (el.type || "text").toLowerCase();
+
+      // 1. Strict Type Affinity
+      if (expectedType === "date") {
+        if (elType === "date") score += 60;
+        else if (elType === "text") score += 20;
+        else score -= 200; // number, password, etc.
+      } else if (expectedType === "number") {
+        if (elType === "number") score += 70;
+        else if (el.getAttribute("min") !== null || el.getAttribute("max") !== null) score += 30;
+        else if (elType === "text") score += 15;
+        else if (elType === "date") score -= 250; // Numbers must never go to date
+        else score -= 100;
+      } else { // "text"
+        if (elType === "date") score -= 300; // Text (e.g. Stone) must NEVER match date
+        else if (elType === "number") score -= 80;
+        else if (elType === "text" || el.tagName === "TEXTAREA") score += 30;
+      }
+
+      // 2. Direct Attribute Context (id, name, placeholder, aria-label, <label>)
       const directContext = norm([
         el.id,
         el.name,
         el.placeholder,
         el.getAttribute("aria-label"),
-        [...(el.labels || [])].map(x => x.innerText || x.textContent).join(" ")
+        [...(el.labels || [])].map(l => l.innerText || l.textContent).join(" ")
       ].join(" "));
-      return terms.some(t => directContext.includes(t));
-    });
-    if (directMatch) return directMatch;
 
-    // 2nd pass: check closest parent container (.form-group, td, label)
-    return inputs.find(el => {
-      const parent = (el.closest && el.closest(".form-group, .form-row, td, tr, label")) || el.parentElement;
-      if (!parent || parent === document.body || parent.tagName === "FORM") return false;
-      const parentText = norm(parent.innerText || parent.textContent);
-      return terms.some(t => parentText.includes(t));
+      for (const term of terms) {
+        if (directContext === term) {
+          score += 100;
+          break;
+        } else if (directContext.includes(term)) {
+          score += 60;
+          break;
+        }
+      }
+
+      // Negative context filtering (e.g. arrival vs lc date)
+      for (const neg of negativeTerms) {
+        if (directContext.includes(neg)) {
+          score -= 120;
+          break;
+        }
+      }
+
+      // 3. Proximity / Parent Container Matching (.form-group, td, tr, label)
+      const parent = (el.closest && el.closest(".form-group, .form-row, td, tr, label, div")) || el.parentElement;
+      if (parent && parent !== document.body && parent.tagName !== "FORM") {
+        const parentText = norm(parent.innerText || parent.textContent || "");
+
+        for (const term of terms) {
+          if (parentText.includes(term)) {
+            score += 35;
+            break;
+          }
+        }
+
+        for (const neg of negativeTerms) {
+          if (parentText.includes(neg)) {
+            score -= 90;
+            break;
+          }
+        }
+      }
+
+      if (score > highestScore && score >= 35) {
+        highestScore = score;
+        bestElement = el;
+      }
+    }
+
+    if (bestElement) {
+      usedElements.add(bestElement);
+    }
+    return bestElement;
+  }
+
+  // Backward-compatible wrapper
+  function findInput(terms, options = {}) {
+    return findSmartInput({
+      terms,
+      negativeTerms: options.negativeTerms || [],
+      expectedType: options.excludeDate ? "text" : (options.onlyDate ? "date" : "text"),
+      ...options
     });
   }
 
@@ -280,63 +362,76 @@
   function handleBookingForm(p) {
     notice("Filling booking details...");
 
-    const fields = [
-      [
-        ["goods you want to export", "name of the goods", "name of goods", "goods name"],
-        p.goods,
-        "Goods",
-        { excludeDate: true }
-      ],
-      [
-        ["25 alphanumeric udin", "udin of lc", "udin"],
-        formatUdin(p.udin),
-        "UDIN",
-        { excludeDate: true }
-      ],
-      [
-        ["enter the lc number", "lc number", "lc no"],
-        p.lcNumber ? String(p.lcNumber).trim().slice(0, 16) : "",
-        "LC number",
-        { excludeDate: true }
-      ],
-      [
-        ["mm/dd/yyyy", "lc date"],
-        p.lcDate,
-        "LC date",
-        {}
-      ],
-      [
-        ["name of the importer", "name of importer", "importer name", "importer"],
-        p.importer,
-        "Importer",
-        { excludeDate: true }
-      ],
-      [
-        ["enter total number of vehicle", "total number of vehicles", "number of vehicles", "vehicles"],
-        p.vehicles,
-        "Vehicles",
-        { excludeDate: true }
-      ]
+    const usedElements = new Set();
+
+    const fieldSpecs = [
+      {
+        label: "Goods",
+        val: p.goods,
+        expectedType: "text",
+        terms: ["goods you want to export", "name of the goods", "name of goods", "goods name"],
+        negativeTerms: ["category", "type", "date"]
+      },
+      {
+        label: "UDIN",
+        val: formatUdin(p.udin),
+        expectedType: "text",
+        terms: ["25 alphanumeric udin", "udin of lc", "udin"],
+        negativeTerms: ["date"]
+      },
+      {
+        label: "LC number",
+        val: p.lcNumber ? String(p.lcNumber).trim().slice(0, 16) : "",
+        expectedType: "text",
+        terms: ["enter the lc number", "lc number", "lc no"],
+        negativeTerms: ["date"]
+      },
+      {
+        label: "LC date",
+        val: p.lcDate,
+        expectedType: "date",
+        terms: ["mm/dd/yyyy", "lc date", "date of lc"],
+        negativeTerms: ["arrival", "tentative", "booking", "reschedule", "expiry"]
+      },
+      {
+        label: "Importer",
+        val: p.importer,
+        expectedType: "text",
+        terms: ["name of the importer", "name of importer", "importer name", "importer"],
+        negativeTerms: ["exporter"]
+      },
+      {
+        label: "Vehicles",
+        val: p.vehicles,
+        expectedType: "number",
+        terms: ["enter total number of vehicle", "total number of vehicles", "number of vehicles", "vehicles"],
+        negativeTerms: ["date"]
+      }
     ];
 
     const filled = [];
-    fields.forEach(([terms, val, label, options]) => {
-      if (val === undefined || val === null || val === "") return;
-      const el = findInput(terms, options || {});
+    fieldSpecs.forEach(spec => {
+      if (spec.val === undefined || spec.val === null || spec.val === "") return;
+      const el = findSmartInput(spec, usedElements);
       if (el) {
-        let formattedVal = val;
-        if (label === "LC date" && el.type !== "date" && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
-          const [yyyy, mm, dd] = val.split("-");
-          formattedVal = `${mm}/${dd}/${yyyy}`;
+        let formattedVal = spec.val;
+        if (spec.label === "LC date") {
+          if (el.type !== "date" && /^\d{4}-\d{2}-\d{2}$/.test(spec.val)) {
+            const [yyyy, mm, dd] = spec.val.split("-");
+            formattedVal = `${mm}/${dd}/${yyyy}`;
+          } else if (el.type === "date" && /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(spec.val)) {
+            const [mm, dd, yyyy] = spec.val.split("/");
+            formattedVal = `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+          }
         }
-        if (setValue(el, formattedVal)) filled.push(label);
+        if (setValue(el, formattedVal)) filled.push(spec.label);
       }
     });
 
-    const logoInput = findInput(
-      ["captchavalue", "captchacode", "captcha", "logo", "logocode", "enter logo code"],
-      { excludeDate: true }
-    );
+    const logoInput = findSmartInput({
+      terms: ["captchavalue", "captchacode", "captcha", "logo", "logocode", "enter logo code"],
+      expectedType: "text"
+    }, usedElements);
     if (logoInput) {
       logoInput.focus();
     }
